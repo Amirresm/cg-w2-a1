@@ -57,49 +57,42 @@ function setup() {
     console.log("Failed to intialize shaders.");
     return;
   }
+  gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
-  function render(
-    positionArray,
-    colorArray,
-    radiusArray,
-    currentSegmentArray,
-    totalSegment,
-    circlesCount
-  ) {
+  function render(array, totalSegment, circlesCount) {
+    const FSIZE = array.BYTES_PER_ELEMENT;
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, array, gl.STATIC_DRAW);
+
     const a_Position = gl.getAttribLocation(gl.program, "a_Position");
-    const positionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    setBufferData(gl, positionArray);
-    setArrayBufferToGL(gl, a_Position, positionBuffer, 2);
+    gl.enableVertexAttribArray(a_Position);
+    gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, FSIZE * 8, 0);
 
     const a_Color = gl.getAttribLocation(gl.program, "a_Color");
-    const colorBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-    setBufferData(gl, colorArray);
-    setArrayBufferToGL(gl, a_Color, colorBuffer, 4);
+    gl.enableVertexAttribArray(a_Color);
+    gl.vertexAttribPointer(a_Color, 4, gl.FLOAT, false, FSIZE * 8, FSIZE * 2);
 
     const a_Radius = gl.getAttribLocation(gl.program, "a_Radius");
-    const radiusBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, radiusBuffer);
-    setBufferData(gl, radiusArray);
-    setArrayBufferToGL(gl, a_Radius, radiusBuffer);
+    gl.enableVertexAttribArray(a_Radius);
+    gl.vertexAttribPointer(a_Radius, 1, gl.FLOAT, false, FSIZE * 8, FSIZE * 6);
 
     const current_Segment = gl.getAttribLocation(gl.program, "current_Segment");
-    const currentSegmentBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, currentSegmentBuffer);
-    setBufferData(gl, currentSegmentArray);
-    setArrayBufferToGL(gl, current_Segment, currentSegmentBuffer);
+    gl.enableVertexAttribArray(current_Segment);
+    gl.vertexAttribPointer(
+      current_Segment,
+      1,
+      gl.FLOAT,
+      false,
+      FSIZE * 8,
+      FSIZE * 7
+    );
 
     const total_Segments = gl.getUniformLocation(gl.program, "total_Segments");
     gl.uniform1f(total_Segments, totalSegment);
 
-    // Specify the color for clearing <canvas>
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
-
-    // Clear <canvas>
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    // Draw
     for (let i = 0; i < circlesCount; i++) {
       gl.drawArrays(gl.TRIANGLE_FAN, i * totalSegment, totalSegment);
     }
@@ -107,14 +100,7 @@ function setup() {
   return render;
 }
 
-function updateCircles(
-  circles,
-  totalSegment,
-  positionArray,
-  colorArray,
-  radiusArray,
-  currentSegmentArray
-) {
+function updateCircles(circles, totalSegment, array) {
   for (let i = 0; i < circles.length; i++) {
     const circle = circles[i];
     if (!circle.color) {
@@ -126,16 +112,15 @@ function updateCircles(
     }
     const color = circle.color;
     for (let j = 0; j < totalSegment; j++) {
-      const index = i * totalSegment + j;
-      positionArray[index * 2] = circle.x;
-      positionArray[index * 2 + 1] = circle.y;
-      const colorIndex = index * 4;
-      colorArray[colorIndex] = color[0];
-      colorArray[colorIndex + 1] = color[1];
-      colorArray[colorIndex + 2] = color[2];
-      colorArray[colorIndex + 3] = color[3];
-      radiusArray[index] = circle.radius;
-      currentSegmentArray[index] = j;
+      let index = (i * totalSegment + j) * 8;
+      array[index++] = circle.x;
+      array[index++] = circle.y;
+      array[index++] = color[0];
+      array[index++] = color[1];
+      array[index++] = color[2];
+      array[index++] = color[3];
+      array[index++] = circle.radius;
+      array[index++] = j;
     }
   }
 }
@@ -144,29 +129,12 @@ function main() {
   const totalSegment = 50;
   const totalVertices = totalSegment * circles.length;
 
-  const positionArray = new Float32Array(totalVertices * 2);
-  const colorArray = new Float32Array(totalVertices * 4);
-  const radiusArray = new Float32Array(totalVertices);
-  const currentSegmentArray = new Float32Array(totalVertices);
+  const array = new Float32Array(totalVertices * 8);
 
   const render = setup();
 
-  updateCircles(
-    circles,
-    totalSegment,
-    positionArray,
-    colorArray,
-    radiusArray,
-    currentSegmentArray
-  );
-  render(
-    positionArray,
-    colorArray,
-    radiusArray,
-    currentSegmentArray,
-    totalSegment,
-    circles.length
-  );
+  updateCircles(circles, totalSegment, array);
+  render(array, totalSegment, circles.length);
   let startTime = -1;
   let lastTime = 0;
   let lastRenderTime = 0;
@@ -196,22 +164,8 @@ function main() {
         }
       }
     }
-    updateCircles(
-      circles,
-      totalSegment,
-      positionArray,
-      colorArray,
-      radiusArray,
-      currentSegmentArray
-    );
-    render(
-      positionArray,
-      colorArray,
-      radiusArray,
-      currentSegmentArray,
-      totalSegment,
-      circles.length
-    );
+    updateCircles(circles, totalSegment, array);
+    render(array, totalSegment, circles.length);
     const end = performance.now();
     const renderTime = end - start;
     lastRenderTime = renderTime;
@@ -219,23 +173,6 @@ function main() {
     window.requestAnimationFrame(step);
   }
   step();
-}
-
-function setArrayBufferToGL(gl, loc, buffer, size = 1, type = gl.FLOAT) {
-  gl.enableVertexAttribArray(loc);
-
-  // Bind the position buffer.
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-
-  // Tell the position attribute how to get data out of positionBuffer (ARRAY_BUFFER)
-  var normalize = false; // don't normalize the data
-  var stride = 0; // 0 = move forward size * sizeof(type) each iteration to get the next position
-  var offset = 0; // start at the beginning of the buffer
-  gl.vertexAttribPointer(loc, size, type, normalize, stride, offset);
-}
-
-function setBufferData(gl, array) {
-  gl.bufferData(gl.ARRAY_BUFFER, array, gl.STATIC_DRAW);
 }
 
 main();
