@@ -1,5 +1,3 @@
-// HelloPint2.js (c) 2012 matsuda
-// Vertex shader program
 var VSHADER_SOURCE = `
   #define PI radians(180.0)
 
@@ -22,7 +20,6 @@ var VSHADER_SOURCE = `
   }
   `;
 
-// Fragment shader program
 var FSHADER_SOURCE = `
   precision mediump float;
   varying vec4 v_Color;
@@ -32,50 +29,63 @@ var FSHADER_SOURCE = `
   }
   `;
 
-const circles = [
-  { x: 0, y: 0.0, radius: 1.5, init: true, center: true },
-  { x: -0.5, y: 0.0, radius: 0.0, init: false },
-  { x: -0.5, y: 0.0, radius: 0.0, init: false },
-  { x: -0.5, y: 0.0, radius: 0.0, init: false },
-  { x: -0.5, y: 0.0, radius: 0.0, init: false },
-  { x: -0.5, y: 0.0, radius: 0.0, init: false },
-];
+const settings = {
+  OBJECT_ELEMENT_SIZE: 8,
+  RANDOM_OBJECT_COUNT: 30,
+  circles: [{ x: 0, y: 0.0, radius: 1.5, init: true, center: true }],
+  segmentPerObject: 50,
+  growRate: 0.05,
+  maxRadius: 0.2,
+  centerRadius: 1.5,
+  growthStartDelayMs: 100,
+  arrayBuffer: null,
+};
 
 function setup() {
-  // Retrieve <canvas> element
   var canvas = document.getElementById("webgl");
-
-  // Get the rendering context for WebGL
   var gl = getWebGLContext(canvas);
   if (!gl) {
     console.log("Failed to get the rendering context for WebGL");
     return;
   }
-
-  // Initialize shaders
   if (!initShaders(gl, VSHADER_SOURCE, FSHADER_SOURCE)) {
     console.log("Failed to intialize shaders.");
     return;
   }
   gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
-  function render(array, totalSegment, circlesCount) {
+  return function render(array, totalSegment, circlesCount) {
     const FSIZE = array.BYTES_PER_ELEMENT;
+    const ESIZE = settings.OBJECT_ELEMENT_SIZE;
     const buffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, array, gl.STATIC_DRAW);
 
     const a_Position = gl.getAttribLocation(gl.program, "a_Position");
     gl.enableVertexAttribArray(a_Position);
-    gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, FSIZE * 8, 0);
+    gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, FSIZE * ESIZE, 0);
 
     const a_Color = gl.getAttribLocation(gl.program, "a_Color");
     gl.enableVertexAttribArray(a_Color);
-    gl.vertexAttribPointer(a_Color, 4, gl.FLOAT, false, FSIZE * 8, FSIZE * 2);
+    gl.vertexAttribPointer(
+      a_Color,
+      4,
+      gl.FLOAT,
+      false,
+      FSIZE * ESIZE,
+      FSIZE * 2
+    );
 
     const a_Radius = gl.getAttribLocation(gl.program, "a_Radius");
     gl.enableVertexAttribArray(a_Radius);
-    gl.vertexAttribPointer(a_Radius, 1, gl.FLOAT, false, FSIZE * 8, FSIZE * 6);
+    gl.vertexAttribPointer(
+      a_Radius,
+      1,
+      gl.FLOAT,
+      false,
+      FSIZE * ESIZE,
+      FSIZE * 6
+    );
 
     const current_Segment = gl.getAttribLocation(gl.program, "current_Segment");
     gl.enableVertexAttribArray(current_Segment);
@@ -84,7 +94,7 @@ function setup() {
       1,
       gl.FLOAT,
       false,
-      FSIZE * 8,
+      FSIZE * ESIZE,
       FSIZE * 7
     );
 
@@ -96,82 +106,114 @@ function setup() {
     for (let i = 0; i < circlesCount; i++) {
       gl.drawArrays(gl.TRIANGLE_FAN, i * totalSegment, totalSegment);
     }
-  }
-  return render;
+  };
 }
 
-function updateCircles(circles, totalSegment, array) {
-  for (let i = 0; i < circles.length; i++) {
-    const circle = circles[i];
-    if (!circle.color) {
-      if (circle.center) {
-        circle.color = [1.0, 1.0, 1.0, 1.0];
-      } else {
-        circle.color = [Math.random(), Math.random(), Math.random(), 1.0];
+function createStepFunction(renderFn, settings) {
+  const circles = settings.circles;
+
+  for (let i = 0; i < settings.RANDOM_OBJECT_COUNT; i++) {
+    circles.push({ x: 0, y: 0.0, radius: 0.0, init: false });
+  }
+
+  const objectCount = circles.length;
+  const segmentPerObject = settings.segmentPerObject;
+  const totalVertices = settings.segmentPerObject * circles.length;
+  settings.arrayBuffer = new Float32Array(
+    totalVertices * settings.OBJECT_ELEMENT_SIZE
+  );
+  const array = settings.arrayBuffer;
+
+  function transferDataToBuffer() {
+    const ESIZE = settings.OBJECT_ELEMENT_SIZE;
+    for (let i = 0; i < circles.length; i++) {
+      const circle = circles[i];
+      if (!circle.color) {
+        if (circle.center) {
+          circle.color = [1.0, 1.0, 1.0, 1.0];
+        } else {
+          circle.color = [Math.random(), Math.random(), Math.random(), 1.0];
+        }
+      }
+      const color = circle.color;
+      for (let j = 0; j < segmentPerObject; j++) {
+        let index = (i * segmentPerObject + j) * ESIZE;
+        array[index++] = circle.x;
+        array[index++] = circle.y;
+        array[index++] = color[0];
+        array[index++] = color[1];
+        array[index++] = color[2];
+        array[index++] = color[3];
+        array[index++] = circle.radius;
+        array[index++] = j;
       }
     }
-    const color = circle.color;
-    for (let j = 0; j < totalSegment; j++) {
-      let index = (i * totalSegment + j) * 8;
-      array[index++] = circle.x;
-      array[index++] = circle.y;
-      array[index++] = color[0];
-      array[index++] = color[1];
-      array[index++] = color[2];
-      array[index++] = color[3];
-      array[index++] = circle.radius;
-      array[index++] = j;
-    }
   }
-}
 
-function main() {
-  const totalSegment = 50;
-  const totalVertices = totalSegment * circles.length;
+  transferDataToBuffer();
+  renderFn(array, segmentPerObject, objectCount);
 
-  const array = new Float32Array(totalVertices * 8);
+  const growRate = settings.growRate;
+  const maxRadius = settings.maxRadius;
+  const centerRadius = settings.centerRadius;
+  const growthStartDelayMs = settings.growthStartDelayMs;
 
-  const render = setup();
+  const renderTimeDiv = document.getElementById("render-time");
+  const deltaTimeDiv = document.getElementById("delta-time");
+  const totalTimeDiv = document.getElementById("total-time");
 
-  updateCircles(circles, totalSegment, array);
-  render(array, totalSegment, circles.length);
   let startTime = -1;
   let lastTime = 0;
   let lastRenderTime = 0;
-  function step(timestamp) {
+  return function step(timestamp) {
     const start = performance.now();
     if (startTime < 0 && timestamp > 0) {
       startTime = timestamp;
     }
     let deltaTime = timestamp - lastTime;
     lastTime = timestamp;
-    deltaTime = deltaTime >= 0 ? deltaTime / 1000 : 0;
-    for (let i = 0; i < circles.length; i++) {
+    deltaTime = deltaTime >= 0 ? deltaTime : 0;
+    const deltaS = deltaTime / 1000;
+    for (let i = 0; i < objectCount; i++) {
       const circle = circles[i];
       if (circle.center) {
       } else {
-        if ((timestamp - startTime) / 1000 > i) {
+        if ((timestamp - startTime) / growthStartDelayMs > i) {
           if (!circle.init) {
             const randAngle = Math.random() * Math.PI * 2;
-            const radius = 1.5;
+            const radius = centerRadius;
             circle.x = Math.cos(randAngle) * radius;
             circle.y = Math.sin(randAngle) * radius;
             circle.init = true;
           }
-          if (circle.radius < 0.2) {
-            circle.radius += 0.05 * deltaTime;
+          if (circle.radius < maxRadius) {
+            circle.radius += growRate * deltaS;
           }
         }
       }
     }
-    updateCircles(circles, totalSegment, array);
-    render(array, totalSegment, circles.length);
-    const end = performance.now();
-    const renderTime = end - start;
+    transferDataToBuffer();
+    renderFn(array, segmentPerObject, objectCount);
+    const renderTime = performance.now() - start;
     lastRenderTime = renderTime;
-    console.log("render time", renderTime, "ms");
-    window.requestAnimationFrame(step);
-  }
+    renderTimeDiv.innerText = "Render Time: " + renderTime.toFixed(2) + "ms";
+    deltaTimeDiv.innerText = "Delta Time: " + deltaTime.toFixed(2) + "ms";
+    totalTimeDiv.innerText =
+      "Total Time: " + (timestamp - startTime).toFixed(2) + "ms";
+    if (
+      !timestamp ||
+      timestamp - startTime <
+        objectCount * growthStartDelayMs + (maxRadius / growRate) * 1000
+    ) {
+      window.requestAnimationFrame(step);
+    }
+  };
+}
+
+function main() {
+  const render = setup();
+  const step = createStepFunction(render, settings);
+
   step();
 }
 
