@@ -32,7 +32,7 @@ var FSHADER_SOURCE = `
 const settings = {
   OBJECT_ELEMENT_SIZE: 8,
   RANDOM_OBJECT_COUNT: 30,
-  circles: [{ x: 0, y: 0.0, radius: 1.5, init: true, center: true }],
+  circles: [{ x: 0, y: 0, radius: 1.5, init: true, center: true }],
   segmentPerObject: 50,
   growRate: 0.05,
   maxRadius: 0.2,
@@ -160,11 +160,13 @@ function createStepFunction(renderFn, settings) {
 
   const renderTimeDiv = document.getElementById("render-time");
   const deltaTimeDiv = document.getElementById("delta-time");
+  const budgetDiv = document.getElementById("budget");
   const totalTimeDiv = document.getElementById("total-time");
 
   let startTime = -1;
   let lastTime = 0;
   let lastRenderTime = 0;
+  let currentTime = 0;
   return function step(timestamp) {
     const start = performance.now();
     if (startTime < 0 && timestamp > 0) {
@@ -174,11 +176,12 @@ function createStepFunction(renderFn, settings) {
     lastTime = timestamp;
     deltaTime = deltaTime >= 0 ? deltaTime : 0;
     const deltaS = deltaTime / 1000;
+    currentTime = timestamp - startTime;
     for (let i = 0; i < objectCount; i++) {
       const circle = circles[i];
       if (circle.center) {
       } else {
-        if ((timestamp - startTime) / growthStartDelayMs > i) {
+        if ((currentTime) / growthStartDelayMs > i) {
           if (!circle.init) {
             const randAngle = Math.random() * Math.PI * 2;
             const radius = centerRadius;
@@ -196,14 +199,18 @@ function createStepFunction(renderFn, settings) {
     renderFn(array, segmentPerObject, objectCount);
     const renderTime = performance.now() - start;
     lastRenderTime = renderTime;
-    renderTimeDiv.innerText = "Render Time: " + renderTime.toFixed(2) + "ms";
-    deltaTimeDiv.innerText = "Delta Time: " + deltaTime.toFixed(2) + "ms";
-    totalTimeDiv.innerText =
-      "Total Time: " + (timestamp - startTime).toFixed(2) + "ms";
+    if (currentTime % 100 < 50) {
+      renderTimeDiv.innerText = "Render Time: " + renderTime.toFixed(2) + "ms";
+      deltaTimeDiv.innerText = "Delta Time: " + deltaTime.toFixed(2) + "ms";
+      budgetDiv.innerText = "Load: " + (renderTime / deltaTime * 100).toFixed(1) + "%";
+      totalTimeDiv.innerText =
+        "Total Time: " + (currentTime).toFixed(2) + "ms";
+    }
     if (
+      true ||
       !timestamp ||
-      timestamp - startTime <
-        objectCount * growthStartDelayMs + (maxRadius / growRate) * 1000
+      currentTime <
+      objectCount * growthStartDelayMs + (maxRadius / growRate) * 1000
     ) {
       window.requestAnimationFrame(step);
     }
@@ -216,5 +223,29 @@ function main() {
 
   step();
 }
+
+function handleCanvasClick(event) {
+  const w = event.target.width;
+  const h = event.target.height;
+  const x = (event.offsetX / (w / 2) - 1) * 2;
+  const y = (event.offsetY / (h / 2) - 1) * -2;
+
+  let target = null;
+  for (let circle of settings.circles) {
+    if (!circle.center) {
+      const xD = circle.x - x;
+      const yD = circle.y - y;
+      if (xD * xD + yD * yD <= circle.radius * circle.radius) {
+        target = circle;
+      }
+    }
+  }
+  if (target) {
+    target.x = -100;
+    target.y = -100;
+  }
+}
+
+document.getElementById("webgl").addEventListener("click", handleCanvasClick)
 
 main();
