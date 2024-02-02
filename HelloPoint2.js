@@ -32,7 +32,9 @@ var FSHADER_SOURCE = `
 const settings = {
   OBJECT_ELEMENT_SIZE: 8,
   RANDOM_OBJECT_COUNT: 5,
-  circles: [{ x: 0, y: 0, radius: 1.5, init: true, center: true }],
+  circles: [
+    { x: 0, y: 0, radius: 1.5, init: true, center: true, visible: true },
+  ],
   segmentPerObject: 50,
   growRate: 0.05,
   maxRadius: 0.2,
@@ -59,7 +61,7 @@ function setup() {
     const ESIZE = settings.OBJECT_ELEMENT_SIZE;
     const buffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, array, gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, array, gl.DYNAMIC_DRAW);
 
     const a_Position = gl.getAttribLocation(gl.program, "a_Position");
     gl.enableVertexAttribArray(a_Position);
@@ -113,7 +115,7 @@ function createStepFunction(renderFn, settings) {
   const circles = settings.circles;
 
   for (let i = 0; i < settings.RANDOM_OBJECT_COUNT; i++) {
-    circles.push({ x: 0, y: 0.0, radius: 0.0, init: false });
+    circles.push({ x: 0, y: 0.0, radius: 0.0 });
   }
 
   const objectCount = circles.length;
@@ -178,6 +180,7 @@ function createStepFunction(renderFn, settings) {
     const deltaS = (start - lastTime) / 1000;
     lastTime = start;
     currentTime = start - originTime;
+    let visibleCircleCount = 0;
     for (let i = 0; i < objectCount; i++) {
       const circle = circles[i];
       if (circle.center) {
@@ -189,16 +192,19 @@ function createStepFunction(renderFn, settings) {
             circle.x = Math.cos(randAngle) * radius;
             circle.y = Math.sin(randAngle) * radius;
             circle.init = true;
+            circle.visible = true;
           }
           if (circle.radius < maxRadius) {
             circle.radius += growRate * deltaS;
           }
-        }
+        } else break;
       }
+      if (circle.visible) visibleCircleCount++;
+      else break;
     }
     renderTime = performance.now();
     transferDataToBuffer();
-    renderFn(array, segmentPerObject, objectCount);
+    renderFn(array, segmentPerObject, visibleCircleCount);
     renderTime = performance.now() - renderTime;
     if (timestamp - lastStatsUpdate > 300) {
       renderTimeDiv.innerText = "Render Time: " + renderTime.toFixed(2) + "ms";
