@@ -271,30 +271,6 @@ function main() {
   document.getElementById("reload").addEventListener("click", () => {
     location.reload();
   });
-
-  document
-    .getElementById("webgl")
-    .addEventListener("click", function handleCanvasClick(event) {
-      const w = event.target.width;
-      const h = event.target.height;
-      const x = (event.offsetX / (w / 2) - 1) * 2;
-      const y = (event.offsetY / (h / 2) - 1) * -2;
-
-      let target = null;
-      for (let circle of settings.circles) {
-        if (!circle.center) {
-          const xD = circle.x - x;
-          const yD = circle.y - y;
-          if (xD * xD + yD * yD <= circle.radius * circle.radius) {
-            target = circle;
-          }
-        }
-      }
-      if (target) {
-        target.x = -100;
-        target.y = -100;
-      }
-    });
 }
 
 main();
