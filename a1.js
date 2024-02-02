@@ -206,7 +206,7 @@ function createStepFunction(renderFn, settings) {
     transferDataToBuffer();
     renderFn(array, segmentPerObject, visibleCircleCount);
     renderTime = performance.now() - renderTime;
-    if (timestamp - lastStatsUpdate > 300) {
+    if (timestamp - lastStatsUpdate > 100) {
       renderTimeDiv.innerText = "Render Time: " + renderTime.toFixed(2) + "ms";
       totalTimeDiv.innerText = "Total Time: " + totalTime.toFixed(2) + "ms";
       deltaTimeDiv.innerText =
@@ -219,7 +219,7 @@ function createStepFunction(renderFn, settings) {
       lastStatsUpdate = timestamp;
     }
     if (
-      true ||
+      // true ||
       !timestamp ||
       currentTime <
         objectCount * growthStartDelayMs + (maxRadius / growRate) * 1000
