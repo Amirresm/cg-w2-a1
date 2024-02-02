@@ -31,13 +31,13 @@ var FSHADER_SOURCE = `
 
 const settings = {
   OBJECT_ELEMENT_SIZE: 8,
-  RANDOM_OBJECT_COUNT: 300,
+  RANDOM_OBJECT_COUNT: 5,
   circles: [{ x: 0, y: 0, radius: 1.5, init: true, center: true }],
   segmentPerObject: 50,
   growRate: 0.05,
   maxRadius: 0.2,
   centerRadius: 1.5,
-  growthStartDelayMs: 100,
+  growthStartDelayMs: 1000,
   arrayBuffer: null,
 };
 
@@ -182,7 +182,7 @@ function createStepFunction(renderFn, settings) {
       const circle = circles[i];
       if (circle.center) {
       } else {
-        if ((currentTime) / growthStartDelayMs > i) {
+        if (currentTime / growthStartDelayMs > i) {
           if (!circle.init) {
             const randAngle = Math.random() * Math.PI * 2;
             const radius = centerRadius;
@@ -200,13 +200,15 @@ function createStepFunction(renderFn, settings) {
     transferDataToBuffer();
     renderFn(array, segmentPerObject, objectCount);
     renderTime = performance.now() - renderTime;
-    if (timestamp - lastStatsUpdate > 100) {
+    if (timestamp - lastStatsUpdate > 300) {
       renderTimeDiv.innerText = "Render Time: " + renderTime.toFixed(2) + "ms";
       totalTimeDiv.innerText = "Total Time: " + totalTime.toFixed(2) + "ms";
-      deltaTimeDiv.innerText = "Delta Time: " + (deltaS * 1000).toFixed(2) + "ms";
-      budgetDiv.innerText = "Load: " + (totalTime / (deltaS * 1000) * 100).toFixed(1) + "%";
+      deltaTimeDiv.innerText =
+        "Delta Time: " + (deltaS * 1000).toFixed(2) + "ms";
+      budgetDiv.innerText =
+        "Load: " + ((totalTime / (deltaS * 1000)) * 100).toFixed(1) + "%";
       elapsedTimeDiv.innerText =
-        "Elapsed Time: " + (currentTime).toFixed(2) + "ms";
+        "Elapsed Time: " + currentTime.toFixed(2) + "ms";
 
       lastStatsUpdate = timestamp;
     }
@@ -214,7 +216,7 @@ function createStepFunction(renderFn, settings) {
       true ||
       !timestamp ||
       currentTime <
-      objectCount * growthStartDelayMs + (maxRadius / growRate) * 1000
+        objectCount * growthStartDelayMs + (maxRadius / growRate) * 1000
     ) {
       window.requestAnimationFrame(step);
     }
@@ -224,33 +226,69 @@ function createStepFunction(renderFn, settings) {
 
 function main() {
   const render = setup();
-  const step = createStepFunction(render, settings);
+  const circleCountInput = document.getElementById("circle-count");
+  const maxRadiusInput = document.getElementById("max-radius");
+  const startGrowthDelayInput = document.getElementById("start-growth-delay");
+  const growthRateInput = document.getElementById("growth-rate");
 
-  step();
-}
+  circleCountInput.value = settings.RANDOM_OBJECT_COUNT;
+  maxRadiusInput.value = settings.maxRadius;
+  startGrowthDelayInput.value = settings.growthStartDelayMs;
+  growthRateInput.value = settings.growRate;
 
-function handleCanvasClick(event) {
-  const w = event.target.width;
-  const h = event.target.height;
-  const x = (event.offsetX / (w / 2) - 1) * 2;
-  const y = (event.offsetY / (h / 2) - 1) * -2;
+  circleCountInput.addEventListener("input", (event) => {
+    settings.RANDOM_OBJECT_COUNT = +event.target.value;
+  });
 
-  let target = null;
-  for (let circle of settings.circles) {
-    if (!circle.center) {
-      const xD = circle.x - x;
-      const yD = circle.y - y;
-      if (xD * xD + yD * yD <= circle.radius * circle.radius) {
-        target = circle;
+  maxRadiusInput.addEventListener("input", (event) => {
+    settings.maxRadius = +event.target.value;
+  });
+
+  startGrowthDelayInput.addEventListener("input", (event) => {
+    settings.growthStartDelayMs = +event.target.value;
+  });
+
+  growthRateInput.addEventListener("input", (event) => {
+    settings.growRate = +event.target.value;
+  });
+
+  document.getElementById("start").addEventListener("click", () => {
+    const step = createStepFunction(render, settings);
+    settings.running = true;
+    circleCountInput.disabled = true;
+    maxRadiusInput.disabled = true;
+    startGrowthDelayInput.disabled = true;
+    growthRateInput.disabled = true;
+    step();
+  });
+
+  document.getElementById("reload").addEventListener("click", () => {
+    location.reload();
+  });
+
+  document
+    .getElementById("webgl")
+    .addEventListener("click", function handleCanvasClick(event) {
+      const w = event.target.width;
+      const h = event.target.height;
+      const x = (event.offsetX / (w / 2) - 1) * 2;
+      const y = (event.offsetY / (h / 2) - 1) * -2;
+
+      let target = null;
+      for (let circle of settings.circles) {
+        if (!circle.center) {
+          const xD = circle.x - x;
+          const yD = circle.y - y;
+          if (xD * xD + yD * yD <= circle.radius * circle.radius) {
+            target = circle;
+          }
+        }
       }
-    }
-  }
-  if (target) {
-    target.x = -100;
-    target.y = -100;
-  }
+      if (target) {
+        target.x = -100;
+        target.y = -100;
+      }
+    });
 }
-
-document.getElementById("webgl").addEventListener("click", handleCanvasClick)
 
 main();
