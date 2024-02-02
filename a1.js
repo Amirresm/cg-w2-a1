@@ -10,13 +10,16 @@ var VSHADER_SOURCE = `
   varying vec4 v_Color;
 
   void main() {
-    float angle = (PI * 2.0 * (current_Segment / total_Segments));
-    vec4 pos = vec4(vec2(cos(angle), sin(angle)) * a_Radius, 0.0, 1.0);
-    pos = pos + a_Position;
-
-    gl_Position = pos;
-    gl_PointSize = 2.0;
     v_Color = a_Color;
+    if (current_Segment == 0.0) {
+      gl_Position = a_Position;
+    } else {
+      float angle = (PI * 2.0 * ((current_Segment - 1.0) / (total_Segments - 2.0)));
+      vec4 pos = vec4(vec2(cos(angle), sin(angle)) * a_Radius, 0.0, 0.0);
+      pos = pos + a_Position;
+      gl_Position = pos;
+    }
+    gl_Position += vec4(0.0, 0.0, 0.0, 0.0);
   }
   `;
 
@@ -33,12 +36,12 @@ const settings = {
   OBJECT_ELEMENT_SIZE: 8,
   RANDOM_OBJECT_COUNT: 5,
   circles: [
-    { x: 0, y: 0, radius: 1.5, init: true, center: true, visible: true },
+    { x: 0, y: 0, radius: 0.8, init: true, center: true, visible: true },
   ],
   segmentPerObject: 50,
-  growRate: 0.05,
-  maxRadius: 0.2,
-  centerRadius: 1.5,
+  growRate: 0.03,
+  maxRadius: 0.1,
+  centerRadius: 0.8,
   growthStartDelayMs: 1000,
   arrayBuffer: null,
 };
