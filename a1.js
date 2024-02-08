@@ -209,7 +209,7 @@ function createStepFunction(renderFn, settings) {
     transferDataToBuffer();
     renderFn(array, segmentPerObject, visibleCircleCount);
     renderTime = performance.now() - renderTime;
-    if (timestamp - lastStatsUpdate > 100) {
+    if (start - lastStatsUpdate > 100) {
       renderTimeDiv.innerText = "Render Time: " + renderTime.toFixed(2) + "ms";
       totalTimeDiv.innerText = "Total Time: " + totalTime.toFixed(2) + "ms";
       deltaTimeDiv.innerText =
@@ -219,13 +219,12 @@ function createStepFunction(renderFn, settings) {
       elapsedTimeDiv.innerText =
         "Elapsed Time: " + currentTime.toFixed(2) + "ms";
 
-      lastStatsUpdate = timestamp;
+      lastStatsUpdate = start;
     }
     if (
       // true ||
-      !timestamp ||
       currentTime <
-        objectCount * growthStartDelayMs + (maxRadius / growRate) * 1000
+      objectCount * growthStartDelayMs + (maxRadius / growRate) * 1000
     ) {
       window.requestAnimationFrame(step);
     }
@@ -262,18 +261,43 @@ function main() {
   });
 
   document.getElementById("start").addEventListener("click", () => {
-    const step = createStepFunction(render, settings);
+    stepFn = createStepFunction(render, settings);
     settings.running = true;
     circleCountInput.disabled = true;
     maxRadiusInput.disabled = true;
     startGrowthDelayInput.disabled = true;
     growthRateInput.disabled = true;
-    step();
+    stepFn();
   });
 
   document.getElementById("reload").addEventListener("click", () => {
     location.reload();
   });
+
+  document
+    .getElementById("webgl")
+    .addEventListener("click", function handleCanvasClick(event) {
+      const w = event.target.width;
+      const h = event.target.height;
+      const x = (event.offsetX / (w / 2) - 1) * 1;
+      const y = (event.offsetY / (h / 2) - 1) * -1;
+
+      let target = null;
+      for (let circle of settings.circles) {
+        if (!circle.center) {
+          const xD = circle.x - x;
+          const yD = circle.y - y;
+          if (xD * xD + yD * yD <= circle.radius * circle.radius) {
+            target = circle;
+          }
+        }
+      }
+      if (target) {
+        target.x = -100;
+        target.y = -100;
+      }
+      stepFn();
+    });
 }
 
 main();
