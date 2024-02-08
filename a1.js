@@ -32,6 +32,7 @@ var FSHADER_SOURCE = `
   }
   `;
 
+const OUTLINE_CONSTANT = -5421.0;
 const settings = {
   OBJECT_ELEMENT_SIZE: 8,
   RANDOM_OBJECT_COUNT: 5,
@@ -57,7 +58,7 @@ function setup() {
     console.log("Failed to intialize shaders.");
     return;
   }
-  gl.clearColor(0.0, 0.0, 0.0, 1.0);
+  gl.clearColor(0.0, 0.0, 0.0, 0.0);
 
   return function render(array, totalSegment, circlesCount) {
     const FSIZE = array.BYTES_PER_ELEMENT;
@@ -109,7 +110,11 @@ function setup() {
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     for (let i = 0; i < circlesCount; i++) {
-      gl.drawArrays(gl.TRIANGLE_FAN, i * totalSegment, totalSegment);
+      if (array[i * totalSegment * ESIZE] < OUTLINE_CONSTANT) {
+        gl.drawArrays(gl.LINE_LOOP, i * totalSegment + 1, totalSegment - 1);
+      } else {
+        gl.drawArrays(gl.TRIANGLE_FAN, i * totalSegment, totalSegment);
+      }
     }
   };
 }
@@ -121,11 +126,10 @@ function createStepFunction(renderFn, settings) {
     circles.push({ x: 0, y: 0.0, radius: 0.0 });
   }
 
-  const objectCount = circles.length;
   const segmentPerObject = settings.segmentPerObject;
   const totalVertices = settings.segmentPerObject * circles.length;
   settings.arrayBuffer = new Float32Array(
-    totalVertices * settings.OBJECT_ELEMENT_SIZE
+    totalVertices * settings.OBJECT_ELEMENT_SIZE * 2
   );
   const array = settings.arrayBuffer;
 
@@ -136,6 +140,8 @@ function createStepFunction(renderFn, settings) {
       if (!circle.color) {
         if (circle.center) {
           circle.color = [1.0, 1.0, 1.0, 1.0];
+        } else if (circle.outline) {
+          circle.color = [1.0, 0.0, 0.0, 1.0];
         } else {
           circle.color = [Math.random(), Math.random(), Math.random(), 1.0];
         }
@@ -143,7 +149,11 @@ function createStepFunction(renderFn, settings) {
       const color = circle.color;
       for (let j = 0; j < segmentPerObject; j++) {
         let index = (i * segmentPerObject + j) * ESIZE;
-        array[index++] = circle.x;
+        if (j === 0 && circle.outline) {
+          array[index++] = OUTLINE_CONSTANT - 1;
+        } else {
+          array[index++] = circle.x;
+        }
         array[index++] = circle.y;
         array[index++] = color[0];
         array[index++] = color[1];
@@ -156,7 +166,7 @@ function createStepFunction(renderFn, settings) {
   }
 
   transferDataToBuffer();
-  renderFn(array, segmentPerObject, objectCount);
+  renderFn(array, segmentPerObject, circles.length);
 
   const growRate = settings.growRate;
   const maxRadius = settings.maxRadius;
@@ -176,6 +186,7 @@ function createStepFunction(renderFn, settings) {
   let lastStatsUpdate = 0;
   let totalTime = 0;
   return function step(timestamp) {
+    const objectCount = circles.length;
     const start = performance.now();
     if (originTime < 0) {
       originTime = start;
@@ -184,11 +195,26 @@ function createStepFunction(renderFn, settings) {
     lastTime = start;
     currentTime = start - originTime;
     let visibleCircleCount = 0;
+    let currentBacteriaIndex = 0;
+    let toRemove = -1;
     for (let i = 0; i < objectCount; i++) {
       const circle = circles[i];
       if (circle.center) {
+      } else if (circle.outline) {
+        if (circle.life <= 0 || circle.radius <= 0) {
+          toRemove = i;
+          continue;
+        } else {
+          circle.radius += circle.rate * deltaS;
+          circle.life -= deltaS;
+          // if (circle.color[0] > 0) circle.color[0] -= 0.09;
+          // if (circle.color[1] < 1) circle.color[1] += 0.09;
+          // if (circle.color[2] < 1) circle.color[2] += 0.09;
+          // if (circle.color[3] > 0) circle.color[3] -= 0.09;
+        }
       } else {
-        if (currentTime / growthStartDelayMs > i) {
+        if (currentTime / growthStartDelayMs > currentBacteriaIndex) {
+          currentBacteriaIndex++;
           if (!circle.init) {
             const randAngle = Math.random() * Math.PI * 2;
             const radius = centerRadius;
@@ -205,6 +231,7 @@ function createStepFunction(renderFn, settings) {
       if (circle.visible) visibleCircleCount++;
       else break;
     }
+    if(toRemove >= 0) circles.splice(toRemove, 1);
     renderTime = performance.now();
     transferDataToBuffer();
     renderFn(array, segmentPerObject, visibleCircleCount);
@@ -222,7 +249,7 @@ function createStepFunction(renderFn, settings) {
       lastStatsUpdate = start;
     }
     if (
-      // true ||
+      true ||
       currentTime <
       objectCount * growthStartDelayMs + (maxRadius / growRate) * 1000
     ) {
@@ -296,8 +323,18 @@ function main() {
         target.x = -100;
         target.y = -100;
       }
-      stepFn();
-    });
+      settings.circles.splice(1, 0, {
+        x,
+        y,
+        radius: 0.01,
+        rate: (1.0 - 0.01) / 1.0,
+        init: true,
+        visible: true,
+        outline: true,
+        life: 1.0,
+        color: [1.0, 0.0, 0.0, 1.0],
+      });
+   });
 }
 
 main();
