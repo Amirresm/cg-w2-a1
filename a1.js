@@ -39,6 +39,7 @@ const settings = {
   circles: [
     { x: 0, y: 0, radius: 0.8, init: true, center: true, visible: true },
   ],
+  effects: [],
   segmentPerObject: 50,
   growRate: 0.03,
   maxRadius: 0.1,
@@ -58,7 +59,7 @@ function setup() {
     console.log("Failed to intialize shaders.");
     return;
   }
-  gl.clearColor(0.0, 0.0, 0.0, 0.0);
+  gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
   return function render(array, totalSegment, circlesCount) {
     const FSIZE = array.BYTES_PER_ELEMENT;
@@ -121,6 +122,7 @@ function setup() {
 
 function createStepFunction(renderFn, settings) {
   const circles = settings.circles;
+  const effects = settings.effects;
 
   for (let i = 0; i < settings.RANDOM_OBJECT_COUNT; i++) {
     circles.push({ x: 0, y: 0.0, radius: 0.0 });
@@ -129,11 +131,11 @@ function createStepFunction(renderFn, settings) {
   const segmentPerObject = settings.segmentPerObject;
   const totalVertices = settings.segmentPerObject * circles.length;
   settings.arrayBuffer = new Float32Array(
-    totalVertices * settings.OBJECT_ELEMENT_SIZE * 2
+    totalVertices * settings.OBJECT_ELEMENT_SIZE * 10
   );
   const array = settings.arrayBuffer;
 
-  function transferDataToBuffer() {
+  function transferDataToBuffer(circles, objectOffset) {
     const ESIZE = settings.OBJECT_ELEMENT_SIZE;
     for (let i = 0; i < circles.length; i++) {
       const circle = circles[i];
@@ -148,7 +150,7 @@ function createStepFunction(renderFn, settings) {
       }
       const color = circle.color;
       for (let j = 0; j < segmentPerObject; j++) {
-        let index = (i * segmentPerObject + j) * ESIZE;
+        let index = ((i + objectOffset) * segmentPerObject + j) * ESIZE;
         if (j === 0 && circle.outline) {
           array[index++] = OUTLINE_CONSTANT - 1;
         } else {
@@ -165,7 +167,7 @@ function createStepFunction(renderFn, settings) {
     }
   }
 
-  transferDataToBuffer();
+  transferDataToBuffer(circles);
   renderFn(array, segmentPerObject, circles.length);
 
   const growRate = settings.growRate;
@@ -185,7 +187,7 @@ function createStepFunction(renderFn, settings) {
   let currentTime = 0;
   let lastStatsUpdate = 0;
   let totalTime = 0;
-  return function step(timestamp) {
+  return function step() {
     const objectCount = circles.length;
     const start = performance.now();
     if (originTime < 0) {
@@ -200,18 +202,6 @@ function createStepFunction(renderFn, settings) {
     for (let i = 0; i < objectCount; i++) {
       const circle = circles[i];
       if (circle.center) {
-      } else if (circle.outline) {
-        if (circle.life <= 0 || circle.radius <= 0) {
-          toRemove = i;
-          continue;
-        } else {
-          circle.radius += circle.rate * deltaS;
-          circle.life -= deltaS;
-          // if (circle.color[0] > 0) circle.color[0] -= 0.09;
-          // if (circle.color[1] < 1) circle.color[1] += 0.09;
-          // if (circle.color[2] < 1) circle.color[2] += 0.09;
-          // if (circle.color[3] > 0) circle.color[3] -= 0.09;
-        }
       } else {
         if (currentTime / growthStartDelayMs > currentBacteriaIndex) {
           currentBacteriaIndex++;
@@ -231,10 +221,34 @@ function createStepFunction(renderFn, settings) {
       if (circle.visible) visibleCircleCount++;
       else break;
     }
-    if(toRemove >= 0) circles.splice(toRemove, 1);
+    for (let i = 0; i < effects.length; i++) {
+      const effect = effects[i];
+      if (effect.life <= 0 || effect.radius <= 0) {
+        toRemove = i;
+        continue;
+      } else {
+        effect.radius += effect.rate * deltaS;
+        effect.life -= deltaS;
+        if (effect.color[0] > 0) effect.color[0] -= 0.01;
+        if (effect.color[1] < 1) effect.color[1] += 0.01;
+        if (effect.color[2] < 1) effect.color[2] += 0.01;
+        if (effect.color[3] > 0) effect.color[3] -= 0.01;
+        for (let j = 1; j < visibleCircleCount; j++) {
+          const dX = effect.x - circles[j].x;
+          const dY = effect.y - circles[j].y;
+          const sumR = effect.radius + circles[j].radius;
+          if (sumR * sumR >= dX*dX + dY*dY) {
+            circles[j].x = -100;
+            circles[j].y = -100;
+          }
+        }
+      }
+    }
+    if (toRemove >= 0) effects.splice(toRemove, 1);
     renderTime = performance.now();
-    transferDataToBuffer();
-    renderFn(array, segmentPerObject, visibleCircleCount);
+    transferDataToBuffer(circles, 0);
+    transferDataToBuffer(effects, visibleCircleCount);
+    renderFn(array, segmentPerObject, visibleCircleCount + effects.length);
     renderTime = performance.now() - renderTime;
     if (start - lastStatsUpdate > 100) {
       renderTimeDiv.innerText = "Render Time: " + renderTime.toFixed(2) + "ms";
@@ -323,18 +337,16 @@ function main() {
         target.x = -100;
         target.y = -100;
       }
-      settings.circles.splice(1, 0, {
+      settings.effects.push({
         x,
         y,
         radius: 0.01,
-        rate: (1.0 - 0.01) / 1.0,
-        init: true,
-        visible: true,
-        outline: true,
-        life: 1.0,
+        rate: (0.3 - 0.01) / 0.7,
+        life: 0.7,
         color: [1.0, 0.0, 0.0, 1.0],
+        outline: true
       });
-   });
+    });
 }
 
 main();
