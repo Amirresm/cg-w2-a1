@@ -7,6 +7,12 @@
 </head>
 
 <style>
+  .main-section {
+    display: flex;
+    align-items: center;
+    margin-top: 20px;
+  }
+
   .canvas-container {
     position: relative;
     width: 400px;
@@ -26,21 +32,47 @@
     color: white;
   }
 
+  .canvas {
+    position: absolute;
+  }
+
+  .status-dash {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    width: 400px;
+  }
+
   .divider {
     height: 0.5px;
     background-color: lightgray;
     margin: 10px 0;
   }
+
+  .bacteria {
+    text-wrap: nowrap;
+    margin-bottom: 2px;
+
+    transition: border 0.5s, width 0.5s, color 0.5s, background-color 0.5s;
+  }
 </style>
 
 <body>
-  <div class="canvas-container">
-    <div class="canvas-message">
-      Press "Start" to begin
+  <div class="main-section">
+    <div class="canvas-container">
+      <div class="canvas-message">
+        Press "Start" to begin
+      </div>
+      <canvas id="webgl" width="400" height="400" class="canvas">
+        Please use a browser that supports "canvas"
+      </canvas>
     </div>
-    <canvas id="webgl" width="400" height="400">
-      Please use a browser that supports "canvas"
-    </canvas>
+
+    <div class="status-dash">
+      <div id="bacteria-list-title">Active Bacteria</div>
+      <div id="bacteria-list"></div>
+    </div>
   </div>
 
   <div class="divider"></div>
@@ -61,6 +93,7 @@
   <div class="divider"></div>
 
   <input type="button" id="start" value="Start">
+  <input type="button" id="pause" value="Pause">
   <input type="button" id="reload" value="Reload">
 
   <div class="divider"></div>
@@ -70,6 +103,7 @@
   <div id="delta-time">Delta Time: --</div>
   <div id="budget">Load: --</div>
   <div id="elapsed-time">Elapsed Time: --</div>
+
 
   <script src="lib/webgl-utils.js"></script>
   <script src="lib/webgl-debug.js"></script>

@@ -34,6 +34,7 @@ var FSHADER_SOURCE = `
 
 const OUTLINE_CONSTANT = -5421.0;
 const settings = {
+  running: false,
   OBJECT_ELEMENT_SIZE: 8,
   RANDOM_OBJECT_COUNT: 5,
   circles: [
@@ -180,6 +181,25 @@ function createStepFunction(renderFn, settings) {
   const deltaTimeDiv = document.getElementById("delta-time");
   const budgetDiv = document.getElementById("budget");
   const elapsedTimeDiv = document.getElementById("elapsed-time");
+  const bacteriaListTitleDiv = document.getElementById("bacteria-list-title");
+  const bacteriaListDiv = document.getElementById("bacteria-list");
+
+  for (let i = 1; i < circles.length; i++) {
+    const bacteria = circles[i];
+    const bacteriaDiv = document.createElement("div");
+    bacteriaDiv.id = `bacteria-${i}`;
+    bacteriaDiv.className = "bacteria";
+    bacteriaDiv.style.width = `0px`;
+    bacteriaDiv.style.height = `24px`;
+    bacteriaDiv.style.backgroundColor = `rgba(${Math.floor(
+      bacteria.color[0] * 255
+    )}, ${Math.floor(bacteria.color[1] * 255)}, ${Math.floor(
+      bacteria.color[2] * 255
+    )}, ${bacteria.color[3]})`;
+    bacteriaDiv.style.border = "2px solid transparent";
+    bacteriaDiv.innerText = `B ${i} (Inactive)`;
+    bacteriaListDiv.appendChild(bacteriaDiv);
+  }
 
   let originTime = -1;
   let lastTime = 0;
@@ -187,7 +207,10 @@ function createStepFunction(renderFn, settings) {
   let currentTime = 0;
   let lastStatsUpdate = 0;
   let totalTime = 0;
-  return function step() {
+  return function step(_, initLastTime) {
+    if (initLastTime) {
+      lastTime = initLastTime;
+    }
     const objectCount = circles.length;
     const start = performance.now();
     if (originTime < 0) {
@@ -195,7 +218,8 @@ function createStepFunction(renderFn, settings) {
     }
     const deltaS = (start - lastTime) / 1000;
     lastTime = start;
-    currentTime = start - originTime;
+    // currentTime = start - originTime;
+    currentTime += deltaS * 1000;
     let visibleCircleCount = 0;
     let currentBacteriaIndex = 0;
     let toRemove = -1;
@@ -215,6 +239,8 @@ function createStepFunction(renderFn, settings) {
           }
           if (circle.radius < maxRadius) {
             circle.radius += growRate * deltaS;
+          } else {
+            circle.radius = maxRadius;
           }
         } else break;
       }
@@ -237,7 +263,7 @@ function createStepFunction(renderFn, settings) {
           const dX = effect.x - circles[j].x;
           const dY = effect.y - circles[j].y;
           const sumR = effect.radius + circles[j].radius;
-          if (sumR * sumR >= dX*dX + dY*dY) {
+          if (sumR * sumR >= dX * dX + dY * dY) {
             circles[j].x = -100;
             circles[j].y = -100;
           }
@@ -260,12 +286,43 @@ function createStepFunction(renderFn, settings) {
       elapsedTimeDiv.innerText =
         "Elapsed Time: " + currentTime.toFixed(2) + "ms";
 
+      const activeBacteriaCount = visibleCircleCount - 1;
+      bacteriaListTitleDiv.innerText = `Active Bacteria: ${activeBacteriaCount.toFixed(
+        0
+      )}`;
+
+      // create and add child elements to bacteriaListDiv for each bacteria
+      for (let i = 1; i < visibleCircleCount; i++) {
+        if (currentTime / growthStartDelayMs > i - 1) {
+          const bacteria = circles[i];
+          const bacteriaDiv = document.getElementById(`bacteria-${i}`);
+          if (bacteria.x === -100 && bacteria.y === -100) {
+            bacteriaDiv.style.width = `100px`;
+            bacteriaDiv.style.backgroundColor = "rgba(0, 0, 0, 1)";
+            bacteriaDiv.style.color = "rgba(255, 255, 255, 1)";
+            bacteriaDiv.style.border = "2px solid transparent";
+            bacteriaDiv.innerText = `B ${i} (Dead)`;
+          } else {
+            bacteriaDiv.innerText = `B ${i} (${(
+              (bacteria.radius / maxRadius) *
+              100
+            ).toFixed(2)}%)`;
+            bacteriaDiv.style.width = `${
+              (bacteria.radius / maxRadius) * 100
+            }px`;
+            if (bacteria.radius === maxRadius) {
+              bacteriaDiv.style.border = "2px solid red";
+            }
+          }
+        }
+      }
+
       lastStatsUpdate = start;
     }
     if (
-      true ||
+      settings.running &&
       currentTime <
-      objectCount * growthStartDelayMs + (maxRadius / growRate) * 1000
+        objectCount * growthStartDelayMs + (maxRadius / growRate) * 1000
     ) {
       window.requestAnimationFrame(step);
     }
@@ -308,7 +365,23 @@ function main() {
     maxRadiusInput.disabled = true;
     startGrowthDelayInput.disabled = true;
     growthRateInput.disabled = true;
-    stepFn();
+    stepFn(undefined, performance.now());
+    document.getElementById("start").disabled = true;
+  });
+
+  document.getElementById("pause").addEventListener("click", () => {
+    if (settings.running) {
+      settings.running = false;
+      circleCountInput.disabled = false;
+      maxRadiusInput.disabled = false;
+      startGrowthDelayInput.disabled = false;
+      growthRateInput.disabled = false;
+      document.getElementById("pause").value = "Resume";
+    } else {
+      settings.running = true;
+      stepFn(undefined, performance.now());
+      document.getElementById("pause").value = "Pause";
+    }
   });
 
   document.getElementById("reload").addEventListener("click", () => {
@@ -344,7 +417,7 @@ function main() {
         rate: (0.3 - 0.01) / 0.7,
         life: 0.7,
         color: [1.0, 0.0, 0.0, 1.0],
-        outline: true
+        outline: true,
       });
     });
 }
