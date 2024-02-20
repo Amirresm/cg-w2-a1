@@ -75,7 +75,7 @@ class Color {
   }
 
   static explosion() {
-    return [0.9, 0.8, 0.0, 1.0];
+    return [0.9, 0.4, 0.0, 1.0];
   }
 }
 
@@ -86,6 +86,11 @@ class WorldContext {
     this.poisons = [];
     this.particles = [];
 
+    this.lastTimestampForScores = null;
+    this.lastUserKillTimestamp = null;
+
+    this.callNotification = null;
+
     this.settings = {
       RANDOM_OBJECT_COUNT: 5,
       growRate: 0.03,
@@ -95,8 +100,12 @@ class WorldContext {
     };
 
     this.scores = {
-      BACTERIUM_KILL_POINTS: 1,
+      BACTERIUM_KILL_POINTS: 10,
       MAX_RADIUS_POINTS: 10,
+      POINTS_PER_SECOND: 2,
+
+      MAX_SCORE: 0,
+
       userScore: 0,
       gameScore: 0,
       winner: null,
@@ -119,6 +128,9 @@ class WorldContext {
       );
       this.bacteria.push(bacterium);
     }
+
+    this.scores.MAX_SCORE =
+      this.bacteria.length * this.scores.MAX_RADIUS_POINTS;
   }
 
   update(deltaS, gameElapsedTime) {
@@ -165,7 +177,22 @@ class WorldContext {
               this.bacteria[j].shape.radius
             );
             this.bacteria[j].remove();
-            this.scores.userScore += this.scores.BACTERIUM_KILL_POINTS;
+            let scoreMultiplier = 1;
+            if (this.lastUserKillTimestamp !== null) {
+              const timeSinceLastKill =
+                (gameElapsedTime - this.lastUserKillTimestamp) / 1000;
+              scoreMultiplier = -Math.pow(timeSinceLastKill, 2) + 2;
+              scoreMultiplier = Math.max(1, scoreMultiplier);
+
+              if (scoreMultiplier > 1 && this.callNotification) {
+                console.log("Combo x" + scoreMultiplier.toFixed(2) + "!");
+                this.callNotification(`Combo x${scoreMultiplier.toFixed(2)}!`);
+              }
+            }
+            this.lastUserKillTimestamp = gameElapsedTime;
+            this.scores.userScore += Math.floor(
+              this.scores.BACTERIUM_KILL_POINTS * scoreMultiplier
+            );
           }
         }
       }
@@ -191,14 +218,16 @@ class WorldContext {
       this.particles.splice(particleIndexToRemove, 1);
 
     if (
-      this.scores.userScore ===
-      this.bacteria.length * this.scores.BACTERIUM_KILL_POINTS
+      gameElapsedTime - this.lastTimestampForScores >
+      1000 / this.scores.POINTS_PER_SECOND
     ) {
+      this.lastTimestampForScores = gameElapsedTime;
+      this.scores.gameScore += 1;
+    }
+
+    if (this.scores.userScore >= this.scores.MAX_SCORE) {
       this.scores.winner = "user";
-    } else if (
-      this.scores.gameScore ===
-      this.bacteria.length * this.scores.MAX_RADIUS_POINTS
-    ) {
+    } else if (this.scores.gameScore >= this.scores.MAX_SCORE) {
       this.scores.winner = "game";
     }
   }
@@ -236,6 +265,7 @@ class RenderPipeline {
   #define PI radians(180.0)
 
   uniform float total_Segments;
+  attribute float a_Type;
   attribute vec4 a_Position;
   attribute vec4 a_Color;
   attribute float a_Radius;
@@ -245,11 +275,16 @@ class RenderPipeline {
 
   void main() {
     v_Color = a_Color;
+
     if (current_Segment == 0.0) {
       gl_Position = a_Position;
     } else {
+      float r = a_Radius;
+      if (a_Type == 2.0) {
+        r = sqrt(log(r + 1.0)) / 2.0;
+      }
       float angle = (PI * 2.0 * ((current_Segment - 1.0) / (total_Segments - 2.0)));
-      vec4 pos = vec4(vec2(cos(angle), sin(angle)) * a_Radius, 0.0, 0.0);
+      vec4 pos = vec4(vec2(cos(angle), sin(angle)) * r, 0.0, 0.0);
       pos = pos + a_Position;
       gl_Position = pos;
     }
@@ -330,6 +365,17 @@ class RenderPipeline {
 
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, array, gl.DYNAMIC_DRAW);
+
+    const a_Type = gl.getAttribLocation(gl.program, "a_Type");
+    gl.enableVertexAttribArray(a_Type);
+    gl.vertexAttribPointer(
+      a_Type,
+      1,
+      gl.FLOAT,
+      false,
+      FSIZE * ESIZE,
+      FSIZE * 0
+    );
 
     const a_Position = gl.getAttribLocation(gl.program, "a_Position");
     gl.enableVertexAttribArray(a_Position);
@@ -428,6 +474,8 @@ class GameMainLoop {
     this.technicalStats = technicalStats;
 
     this.technicalStats.addBacteriaDivElements(this.worldContext.bacteria);
+
+    this.setNotificationCallback();
   }
 
   start() {
@@ -468,6 +516,7 @@ class GameMainLoop {
 
     if (this.gameElapsedTime % 100 < 16) {
       this.technicalStats.updateScores(
+        this.worldContext.scores.MAX_SCORE,
         this.worldContext.scores.userScore,
         this.worldContext.scores.gameScore
       );
@@ -487,6 +536,22 @@ class GameMainLoop {
     }
     if (this.running) requestAnimationFrame(this.loop.bind(this));
   }
+
+  setNotificationCallback() {
+    const notificationElement = document.getElementById("score-popup");
+    const notificationMessageElement = document.getElementById(
+      "score-popup-message"
+    );
+
+    this.worldContext.callNotification = (message) => {
+      console.log("Notification: ", message);
+      notificationMessageElement.innerText = message;
+      notificationElement.style.opacity = 1;
+      setTimeout(() => {
+        notificationElement.style.opacity = 0;
+      }, 2000);
+    };
+  }
 }
 
 class TechnicalStats {
@@ -500,6 +565,7 @@ class TechnicalStats {
     this.bacteriaListTitleDiv = document.getElementById("bacteria-list-title");
     this.bacteriaListDiv = document.getElementById("bacteria-list");
 
+    this.helperScoreDiv = document.getElementById("helper-score");
     this.userScoreDiv = document.getElementById("user-score");
     this.gameScoreDiv = document.getElementById("game-score");
 
@@ -576,15 +642,18 @@ class TechnicalStats {
     )}`;
   }
 
-  updateScores(userScore, gameScore) {
-    this.userScoreDiv.innerText = "User Score: " + userScore.toFixed(0);
-    this.gameScoreDiv.innerText = "Game Score: " + gameScore.toFixed(0);
+  updateScores(maxScore, userScore, gameScore) {
+    this.helperScoreDiv.innerText = `Target Score is ${maxScore.toFixed(
+      0
+    )}. The player with this score wins!`;
+    this.userScoreDiv.innerText = "User Score: " + userScore.toFixed();
+    this.gameScoreDiv.innerText = "Game Score: " + gameScore.toFixed();
   }
 
   setWinner(winner) {
     this.winnerBannerDiv.style.opacity = 1;
     this.winnerBannerMessageDiv.innerText =
-      winner === "user" ? "You Win!" : "You Lose!";
+      winner === "user" ? "You Won!" : "You Lost!";
   }
 }
 
