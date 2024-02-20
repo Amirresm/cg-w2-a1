@@ -42,6 +42,8 @@
     justify-content: flex-start;
     align-items: flex-start;
     width: 400px;
+    max-height: 400px;
+    overflow-y: auto;
   }
 
   .divider {
@@ -54,7 +56,8 @@
     text-wrap: nowrap;
     margin-bottom: 2px;
 
-    transition: border 0.5s, width 0.5s, color 0.5s, background-color 0.5s;
+    transition: border 0.5s, width 0.1s, color 0.5s, background-color 0.5s;
+    box-sizing: border-box;
   }
 </style>
 
@@ -108,7 +111,7 @@
   <script src="lib/webgl-utils.js"></script>
   <script src="lib/webgl-debug.js"></script>
   <script src="lib/cuon-utils.js"></script>
-  <script src="a1.js"></script>
+  <script src="a2.js"></script>
 </body>
 
 </html>
