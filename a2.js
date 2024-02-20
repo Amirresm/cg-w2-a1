@@ -1,5 +1,3 @@
-const OUTLINE_CONSTANT = -5421.0;
-
 class CircleShape {
   static ELEMENT_SIZE = 9; // x, y, r, color[4], vertexIndex
   static checkCollision(shape1, shape2) {
@@ -36,6 +34,7 @@ class GrowableObject extends ObjectMeta {
     super(shape);
     this.maxRadius = maxRadius;
     this.growthRate = growthRate;
+    this.pointsAreGiven = false;
   }
 
   grow(deltaS) {
@@ -94,6 +93,14 @@ class WorldContext {
       centerRadius: 0.8,
       growthStartDelayMs: 1000,
     };
+
+    this.scores = {
+      BACTERIUM_KILL_POINTS: 1,
+      MAX_RADIUS_POINTS: 10,
+      userScore: 0,
+      gameScore: 0,
+      winner: null,
+    };
   }
 
   setup() {
@@ -123,8 +130,16 @@ class WorldContext {
           bacterium.shape.visible = true;
         }
         bacterium.grow(deltaS);
+        if (
+          bacterium.shape.radius >= bacterium.maxRadius &&
+          !bacterium.pointsAreGiven
+        ) {
+          this.scores.gameScore += this.scores.MAX_RADIUS_POINTS;
+          bacterium.pointsAreGiven = true;
+        }
       }
     }
+
     let poisonIndexToRemove = -1;
     for (let i = 0; i < this.poisons.length; i++) {
       const poison = this.poisons[i];
@@ -150,6 +165,7 @@ class WorldContext {
               this.bacteria[j].shape.radius
             );
             this.bacteria[j].remove();
+            this.scores.userScore += this.scores.BACTERIUM_KILL_POINTS;
           }
         }
       }
@@ -173,6 +189,18 @@ class WorldContext {
     }
     if (particleIndexToRemove >= 0)
       this.particles.splice(particleIndexToRemove, 1);
+
+    if (
+      this.scores.userScore ===
+      this.bacteria.length * this.scores.BACTERIUM_KILL_POINTS
+    ) {
+      this.scores.winner = "user";
+    } else if (
+      this.scores.gameScore ===
+      this.bacteria.length * this.scores.MAX_RADIUS_POINTS
+    ) {
+      this.scores.winner = "game";
+    }
   }
 
   addPoison(x, y, maxRadius = 0.3, lifeTime = 0.7) {
@@ -439,6 +467,15 @@ class GameMainLoop {
     totalUpdateTime = performance.now() - totalUpdateTime;
 
     if (this.gameElapsedTime % 100 < 16) {
+      this.technicalStats.updateScores(
+        this.worldContext.scores.userScore,
+        this.worldContext.scores.gameScore
+      );
+      if (this.worldContext.scores.winner) {
+        this.stop();
+        this.technicalStats.setWinner(this.worldContext.scores.winner);
+      }
+
       this.technicalStats.updateBacteriaDivElements(this.worldContext.bacteria);
       this.technicalStats.updateStats(
         this.worldContext.bacteria,
@@ -454,6 +491,7 @@ class GameMainLoop {
 
 class TechnicalStats {
   constructor() {
+    this.FPSDiv = document.getElementById("fps");
     this.renderTimeDiv = document.getElementById("render-time");
     this.totalTimeDiv = document.getElementById("total-time");
     this.deltaTimeDiv = document.getElementById("delta-time");
@@ -461,6 +499,14 @@ class TechnicalStats {
     this.elapsedTimeDiv = document.getElementById("elapsed-time");
     this.bacteriaListTitleDiv = document.getElementById("bacteria-list-title");
     this.bacteriaListDiv = document.getElementById("bacteria-list");
+
+    this.userScoreDiv = document.getElementById("user-score");
+    this.gameScoreDiv = document.getElementById("game-score");
+
+    this.winnerBannerDiv = document.getElementById("winner-banner");
+    this.winnerBannerMessageDiv = document.getElementById(
+      "winner-banner-message"
+    );
   }
 
   addBacteriaDivElements(bacteria) {
@@ -512,6 +558,7 @@ class TechnicalStats {
   }
 
   updateStats(bacteria, renderTime, deltaS, totalUpdateTime, elapsedTime) {
+    this.FPSDiv.innerText = "FPS: " + (1 / deltaS).toFixed(1);
     this.renderTimeDiv.innerText =
       "Render Time: " + renderTime.toFixed(2) + "ms";
     this.totalTimeDiv.innerText =
@@ -527,6 +574,17 @@ class TechnicalStats {
     this.bacteriaListTitleDiv.innerText = `Active Bacteria: ${activeBacteriaCount.toFixed(
       0
     )}`;
+  }
+
+  updateScores(userScore, gameScore) {
+    this.userScoreDiv.innerText = "User Score: " + userScore.toFixed(0);
+    this.gameScoreDiv.innerText = "Game Score: " + gameScore.toFixed(0);
+  }
+
+  setWinner(winner) {
+    this.winnerBannerDiv.style.opacity = 1;
+    this.winnerBannerMessageDiv.innerText =
+      winner === "user" ? "You Win!" : "You Lose!";
   }
 }
 
@@ -598,6 +656,7 @@ class GameStateController {
       document.getElementById("start").disabled = true;
       this.setup();
       this.gameMainLoop.start();
+      document.getElementById("pause").disabled = false;
     });
 
     document.getElementById("pause").addEventListener("click", () => {
@@ -611,6 +670,7 @@ class GameStateController {
         this.gameMainLoop.start();
       }
     });
+    document.getElementById("pause").disabled = true;
 
     document.getElementById("reload").addEventListener("click", () => {
       location.reload();
