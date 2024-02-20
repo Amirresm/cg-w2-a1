@@ -92,7 +92,7 @@ class WorldContext {
     this.callNotification = null;
 
     this.settings = {
-      RANDOM_OBJECT_COUNT: 5,
+      RANDOM_OBJECT_COUNT: 10,
       growRate: 0.03,
       maxRadius: 0.1,
       centerRadius: 0.8,
@@ -607,7 +607,7 @@ class TechnicalStats {
         bacteriaDiv.style.color = "rgba(255, 255, 255, 1)";
         bacteriaDiv.style.border = "2px solid transparent";
         bacteriaDiv.innerText = `B ${i} (Dead)`;
-      } else {
+      } else if (bacterium.shape.visible) {
         bacteriaDiv.innerText = `B ${i} (${(
           (bacterium.shape.radius / bacterium.maxRadius) *
           100
