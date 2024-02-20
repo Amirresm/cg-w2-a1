@@ -1,7 +1,7 @@
 const OUTLINE_CONSTANT = -5421.0;
 
 class CircleShape {
-  static ELEMENT_SIZE = 8; // x, y, r, color[4], vertexIndex
+  static ELEMENT_SIZE = 9; // x, y, r, color[4], vertexIndex
   static checkCollision(shape1, shape2) {
     const dX = shape1.x - shape2.x;
     const dY = shape1.y - shape2.y;
@@ -70,6 +70,14 @@ class Color {
   static white() {
     return [1.0, 1.0, 1.0, 1.0];
   }
+
+  static poison() {
+    return [0.0, 1.0, 0.5, 1.0];
+  }
+
+  static explosion() {
+    return [0.9, 0.8, 0.0, 1.0];
+  }
 }
 
 class WorldContext {
@@ -77,6 +85,7 @@ class WorldContext {
     this.scene = [];
     this.bacteria = [];
     this.poisons = [];
+    this.particles = [];
 
     this.settings = {
       RANDOM_OBJECT_COUNT: 5,
@@ -131,22 +140,64 @@ class WorldContext {
         // if (poison.shape.color[3] > 0) poison.shape.color[3] -= 0.01;
         for (let j = 0; j < this.bacteria.length; j++) {
           if (
+            this.bacteria[j].active &&
+            this.bacteria[j].shape.visible &&
             CircleShape.checkCollision(poison.shape, this.bacteria[j].shape)
           ) {
+            this.addExplosion(
+              this.bacteria[j].shape.x,
+              this.bacteria[j].shape.y,
+              this.bacteria[j].shape.radius
+            );
             this.bacteria[j].remove();
           }
         }
       }
     }
     if (poisonIndexToRemove >= 0) this.poisons.splice(poisonIndexToRemove, 1);
+
+    let particleIndexToRemove = -1;
+    for (let i = 0; i < this.particles.length; i++) {
+      const particle = this.particles[i];
+      if (particle.shape.radius >= particle.maxRadius) {
+        // particle.shape.visible = false;
+        particleIndexToRemove = i;
+        continue;
+      } else {
+        particle.grow(deltaS);
+        // if (particle.color[0] > 0) particle.color[0] -= 0.01;
+        // if (particle.color[1] < 1) particle.color[1] += 0.01;
+        // if (particle.color[2] < 1) particle.color[2] += 0.01;
+        // if (particle.shape.color[3] > 0) particle.shape.color[3] -= 0.01;
+      }
+    }
+    if (particleIndexToRemove >= 0)
+      this.particles.splice(particleIndexToRemove, 1);
   }
 
   addPoison(x, y, maxRadius = 0.3, lifeTime = 0.7) {
     this.poisons.push(
       new GrowableObject(
-        new CircleShape(x, y, 0.01, [1.0, 0.0, 0.0, 1.0], true, "outline"),
+        new CircleShape(x, y, 0.0, Color.poison(), true, "outline"),
         maxRadius,
-        (maxRadius - 0.01) / lifeTime
+        (maxRadius - 0.0) / lifeTime
+      )
+    );
+  }
+
+  addExplosion(x, y, startingRadius = 0.0, maxRadius = 0.5, lifeTime = 0.4) {
+    this.particles.push(
+      new GrowableObject(
+        new CircleShape(
+          x,
+          y,
+          startingRadius,
+          Color.explosion(),
+          true,
+          "particle"
+        ),
+        maxRadius,
+        (maxRadius - 0.0) / lifeTime
       )
     );
   }
@@ -224,11 +275,9 @@ class RenderPipeline {
           let index =
             ((bufferIndex + objectOffset) * this.shapeFragmentCount + j) *
             ESIZE;
-          if (j === 0 && shape.type === "outline") {
-            array[index++] = OUTLINE_CONSTANT - 1;
-          } else {
-            array[index++] = shape.x;
-          }
+          array[index++] =
+            shape.type === "particle" ? 2 : shape.type === "outline" ? 1 : 0;
+          array[index++] = shape.x;
           array[index++] = shape.y;
           array[index++] = shape.color[0];
           array[index++] = shape.color[1];
@@ -256,7 +305,14 @@ class RenderPipeline {
 
     const a_Position = gl.getAttribLocation(gl.program, "a_Position");
     gl.enableVertexAttribArray(a_Position);
-    gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, FSIZE * ESIZE, 0);
+    gl.vertexAttribPointer(
+      a_Position,
+      2,
+      gl.FLOAT,
+      false,
+      FSIZE * ESIZE,
+      FSIZE * 1
+    );
 
     const a_Color = gl.getAttribLocation(gl.program, "a_Color");
     gl.enableVertexAttribArray(a_Color);
@@ -266,7 +322,7 @@ class RenderPipeline {
       gl.FLOAT,
       false,
       FSIZE * ESIZE,
-      FSIZE * 2
+      FSIZE * 3
     );
 
     const a_Radius = gl.getAttribLocation(gl.program, "a_Radius");
@@ -277,7 +333,7 @@ class RenderPipeline {
       gl.FLOAT,
       false,
       FSIZE * ESIZE,
-      FSIZE * 6
+      FSIZE * 7
     );
 
     const current_Segment = gl.getAttribLocation(gl.program, "current_Segment");
@@ -288,7 +344,7 @@ class RenderPipeline {
       gl.FLOAT,
       false,
       FSIZE * ESIZE,
-      FSIZE * 7
+      FSIZE * 8
     );
 
     const total_Segments = gl.getUniformLocation(gl.program, "total_Segments");
@@ -297,18 +353,31 @@ class RenderPipeline {
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     for (let i = 0; i < this.currentShapeCountInBuffer; i++) {
-      if (array[i * this.shapeFragmentCount * ESIZE] < OUTLINE_CONSTANT) {
-        gl.drawArrays(
-          gl.LINE_LOOP,
-          i * this.shapeFragmentCount + 1,
-          this.shapeFragmentCount - 1
-        );
-      } else {
-        gl.drawArrays(
-          gl.TRIANGLE_FAN,
-          i * this.shapeFragmentCount,
-          this.shapeFragmentCount
-        );
+      switch (array[i * this.shapeFragmentCount * ESIZE]) {
+        case 0:
+          gl.drawArrays(
+            gl.TRIANGLE_FAN,
+            i * this.shapeFragmentCount,
+            this.shapeFragmentCount
+          );
+          break;
+        case 1:
+          gl.drawArrays(
+            gl.LINE_LOOP,
+            i * this.shapeFragmentCount + 1,
+            this.shapeFragmentCount - 1
+          );
+          break;
+        case 2:
+          gl.drawArrays(
+            gl.LINES,
+            i * this.shapeFragmentCount + 1,
+            this.shapeFragmentCount - 1
+          );
+          break;
+        default:
+          console.error("Invalid shape type");
+          break;
       }
     }
     this.currentShapeCountInBuffer = 0;
@@ -364,6 +433,7 @@ class GameMainLoop {
       this.worldContext.scene.map((m) => m.shape),
       this.worldContext.bacteria.map((m) => m.shape),
       this.worldContext.poisons.map((m) => m.shape),
+      this.worldContext.particles.map((m) => m.shape),
     ]);
     renderTimeMS = performance.now() - renderTimeMS;
     totalUpdateTime = performance.now() - totalUpdateTime;
@@ -577,7 +647,12 @@ class GameStateController {
 }
 
 const world = new WorldContext();
-const renderPipeline = new RenderPipeline("webgl", 99999, 50, 8);
+const renderPipeline = new RenderPipeline(
+  "webgl",
+  99999,
+  50,
+  CircleShape.ELEMENT_SIZE
+);
 const technicalStats = new TechnicalStats();
 const gameMainLoop = new GameMainLoop(world, renderPipeline, technicalStats);
 const gameStateController = new GameStateController(world, gameMainLoop);
