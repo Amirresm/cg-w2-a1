@@ -42,7 +42,6 @@ class RenderPipeline {
 
 		this.moMatrix = new Matrix4();
 		this.viewMatrix = new Matrix4();
-		this.viewMatrix.elements[14] = this.viewMatrix.elements[14] - 6;
 	}
 
 	resizeDataBuffer(size) {
