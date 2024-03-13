@@ -14,6 +14,7 @@ class RenderPipeline {
 	varying vec3 vColor;
 	void main() {
 		gl_Position = Pmatrix * Vmatrix * Mmatrix * vec4(position, 1.0);\n
+		gl_PointSize = 8.0;
 		vColor = color;
 	}
   `;
@@ -56,11 +57,11 @@ class RenderPipeline {
 
 		this.resizeDataBuffer(verticesCount * vertexSize);
 
-		const latDegreeStep = 180 / latCount;
+		const latDegreeStep = 165 / latCount;
 		const langDegreeStep = 360 / langCount;
 
 		for (let latNumber = 0; latNumber <= latCount; latNumber++) {
-			const theta = latNumber * latDegreeStep;
+			const theta = latNumber * latDegreeStep + 15;
 			const sinTheta = Math.sin(radians(theta));
 			const cosTheta = Math.cos(radians(theta));
 			for (let langNumber = 0; langNumber <= langCount; langNumber++) {
@@ -75,11 +76,15 @@ class RenderPipeline {
 				this.dataBuffer[bIndex++] = x * radius;
 				this.dataBuffer[bIndex++] = y * radius;
 				this.dataBuffer[bIndex++] = z * radius;
-				if (latNumber === 25 && langNumber === 0) {
+				if (latNumber === 0 && langNumber === 0) {
 					this.dataBuffer[bIndex++] = 0.0;
 					this.dataBuffer[bIndex++] = 1.0;
 					this.dataBuffer[bIndex++] = 0.0;
-				} else if (latNumber % 5 < 1 && langNumber % 5 < 1) {
+				}else if (latNumber === 1 && langNumber === 1) {
+					this.dataBuffer[bIndex++] = 1.0;
+					this.dataBuffer[bIndex++] = 0.0;
+					this.dataBuffer[bIndex++] = 0.0;
+				} else if (latNumber % 2 < 1 && langNumber % 2 < 1) {
 					this.dataBuffer[bIndex++] = dotColor[0];
 					this.dataBuffer[bIndex++] = dotColor[1];
 					this.dataBuffer[bIndex++] = dotColor[2];
@@ -91,6 +96,27 @@ class RenderPipeline {
 				}
 			}
 		}
+
+		const latRectCount = latCount;
+		const langRectCount = langCount;
+		const indices = []
+		for (let j = 0; j < latRectCount - 1; j++) {
+			for (let i = 0; i < langRectCount; i++) {
+				const q1 = i + j * langRectCount;
+				const q2 = (i + 1) % langRectCount + j * langRectCount;
+				const q3 = i + (j + 1) * langRectCount;
+				const q4 = (i + 1) % langRectCount + (j + 1) * langRectCount;
+
+				indices.push(q1);
+				indices.push(q3);
+				indices.push(q4);
+
+				indices.push(q1);
+				indices.push(q2);
+				indices.push(q4);
+			}
+		}
+		this.indexBuffer = new Uint16Array(indices);
 	}
 
 	render() {
@@ -125,15 +151,18 @@ class RenderPipeline {
 			FSIZE * 3
 		);
 
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer, gl.STATIC_DRAW);
+
 		gl.uniformMatrix4fv(gl.getUniformLocation(gl.program, "Pmatrix"), false, this.projMatrix.elements);
 		gl.uniformMatrix4fv(gl.getUniformLocation(gl.program, "Vmatrix"), false, this.viewMatrix.elements);
 		gl.uniformMatrix4fv(gl.getUniformLocation(gl.program, "Mmatrix"), false, this.moMatrix.elements);
 
 		gl.enable(gl.DEPTH_TEST);
 		gl.clear(gl.COLOR_BUFFER_BIT);
-
+		gl.drawElements(gl.TRIANGLES, this.indexBuffer.length, gl.UNSIGNED_SHORT, 0);
 		gl.drawArrays(
-			gl.TRIANGLE_FAN,
+			gl.POINTS,
 			0,
 			this.verticesCount
 		);

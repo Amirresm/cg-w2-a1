@@ -31,7 +31,7 @@ function main() {
 		}
 	}
 
-	renderPipeline.setSphere(2, 40, 80, [0.3, 0.3, 0.3, 1], [1, 1, 0, 1]);
+	renderPipeline.setSphere(2, 6, 6, [0.3, 0.3, 0.3, 1], [1, 1, 0, 1]);
 	renderPipeline.viewMatrix.setTranslate(0, 0, -6);
 
 	let theta = 0.0;
