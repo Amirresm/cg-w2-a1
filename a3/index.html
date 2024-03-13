@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <title>Assignment 1</title>
+</head>
+
+<body>
+  <div class="main-section">
+    <div class="winner-banner" id="winner-banner">
+      <h1 id="winner-banner-message">Winner!</h1>
+      <h5>Press "Reload" to play again.</h5>
+    </div>
+    <div class="canvas-container">
+      <div class="canvas-message">
+        Press "Start" to begin
+      </div>
+      <canvas id="webgl" width="400" height="400" class="canvas">
+        Please use a browser that supports "canvas"
+      </canvas>
+    </div>
+
+    <div class="status-dash">
+      <div id="bacteria-list-title">Active Bacteria</div>
+      <div id="bacteria-list"></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <label for="circle-count">Circle Count:</label>
+  <input type="text" id="circle-count" value="1">
+  <label for="max-radius">Max Radius:</label>
+  <input type="text" id="max-radius" value="1">
+
+  <div class="divider"></div>
+
+  <label for="growth-rate">Growth Rate:</label>
+  <input type="text" id="growth-rate" value="1">
+
+  <label for="start-growth-delay">Start Growth Delay:</label>
+  <input type="text" id="start-growth-delay" value="1">
+
+  <div class="divider"></div>
+
+  <input type="button" id="start" value="Start">
+  <input type="button" id="pause" value="Pause">
+  <input type="button" id="reload" value="Reload">
+
+  <div class="divider"></div>
+
+  <div class="stats-container">
+    <div class="tech-stats-container">
+      <div id="fps">FPS: --</div>
+      <div id="render-time">Render Time: --</div>
+      <div id="total-time">Total Time: --</div>
+      <div id="delta-time">Delta Time: --</div>
+      <div id="budget">Load: --</div>
+      <div id="elapsed-time">Elapsed Time: --</div>
+    </div>
+    <div class="vert-divider"></div>
+    <div class="score-container">
+      <p>
+        Game gains scores as time passes and when any bacterium reaches its maximum size.
+        You gain points by killing the bacteria. If you kill two bacteria quickly, you get bonus points.
+      </p>
+      <div class="divider"></div>
+      <h4 id="helper-score">Target Score is -- (updates when game starts). The player with this score wins!</h4>
+      <div class="divider"></div>
+      <h2 id="user-score">User Score: --</h2>
+      <h2 id="game-score">Game Score: --</h2>
+
+      <div class="score-popup" id="score-popup">
+        <h3 id="score-popup-message"></h3>
+      </div>
+    </div>
+  </div>
+
+
+  <script src="../lib/webgl-utils.js"></script>
+  <script src="../lib/webgl-debug.js"></script>
+  <script src="../lib/cuon-utils.js"></script>
+  <script src="../lib/cuon-matrix.js"></script>
+  <script src="color.js"></script>
+  <script src="renderPipeline.js"></script>
+  <script src="index.js"></script>
+</body>
+
+</html>
