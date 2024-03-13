@@ -75,7 +75,11 @@ class RenderPipeline {
 				this.dataBuffer[bIndex++] = x * radius;
 				this.dataBuffer[bIndex++] = y * radius;
 				this.dataBuffer[bIndex++] = z * radius;
-				if (latNumber % 5 === 0 && langNumber % 5 === 0) {
+				if (latNumber === 25 && langNumber === 0) {
+					this.dataBuffer[bIndex++] = 0.0;
+					this.dataBuffer[bIndex++] = 1.0;
+					this.dataBuffer[bIndex++] = 0.0;
+				} else if (latNumber % 5 < 1 && langNumber % 5 < 1) {
 					this.dataBuffer[bIndex++] = dotColor[0];
 					this.dataBuffer[bIndex++] = dotColor[1];
 					this.dataBuffer[bIndex++] = dotColor[2];
@@ -120,9 +124,6 @@ class RenderPipeline {
 			FSIZE * ESIZE,
 			FSIZE * 3
 		);
-
-		// const total_Segments = gl.getUniformLocation(gl.program, "total_Segments");
-		// gl.uniform1f(total_Segments, this.shapeFragmentCount);
 
 		gl.uniformMatrix4fv(gl.getUniformLocation(gl.program, "Pmatrix"), false, this.projMatrix.elements);
 		gl.uniformMatrix4fv(gl.getUniformLocation(gl.program, "Vmatrix"), false, this.viewMatrix.elements);
