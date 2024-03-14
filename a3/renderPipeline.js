@@ -7,27 +7,46 @@ class RenderPipeline {
 	#define PI radians(180.0)
 
 	attribute vec3 position;
+
 	uniform mat4 Pmatrix;
 	uniform mat4 Vmatrix;
 	uniform mat4 Mmatrix;
+
+	uniform vec4 uSphereColor;
+	uniform vec4 uDotColor;
+	uniform vec4 uBacteriaColor;
+
+	attribute float type;
 	attribute vec3 color;
-	varying vec3 vColor;
+	varying vec4 vColor;
 	void main() {
 		gl_Position = Pmatrix * Vmatrix * Mmatrix * vec4(position, 1.0);\n
-		gl_PointSize = 8.0;
-		vColor = color;
+		float pointScaleRate = 1.00;
+		mat4 pointScale = mat4(pointScaleRate, 0.0, 0.0, 0.0,   0.0, pointScaleRate, 0.0, 0.0,   0.0, 0.0, pointScaleRate, 0.0,   0.0, 0.0, 0.0, 1.0);
+		if (type == 0.0) {
+			gl_PointSize = 0.0;
+			vColor = uSphereColor;
+		} else if (type == 1.0) {
+			gl_PointSize = 4.0;
+			gl_Position = gl_Position * pointScale;
+			vColor = uDotColor;
+		} else if (type == 2.0) {
+			gl_PointSize = 8.0;
+			gl_Position = gl_Position * pointScale;
+			vColor = uBacteriaColor;
+		}
 	}
   `;
 
 	FSHADER_SOURCE = `
 	precision mediump float;
-	varying vec3 vColor;
+	varying vec4 vColor;
 
 	void main() {
-	gl_FragColor = vec4(vColor, 1);
+	gl_FragColor = vColor;
 	}
   `;
-	constructor(canvasId, dataBufferSize, shapeFragmentCount, shapeElementSize) {
+	constructor(canvasId, latStep, langStep, sphereCount) {
 		this.canvas = document.getElementById(canvasId);
 		this.gl = getWebGLContext(this.canvas);
 		if (!this.gl) {
@@ -43,28 +62,47 @@ class RenderPipeline {
 
 		this.moMatrix = new Matrix4();
 		this.viewMatrix = new Matrix4();
+
+		this.latStep = latStep;
+		this.langStep = langStep;
+		this.sphereCount = sphereCount;
+
+		this.vertexSize = 3 + 1;
+		this.verticesCount = latStep * langStep;
+		this.dataBufferOffset = null;
+		this.resizeDataBuffer(sphereCount * this.verticesCount * this.vertexSize);
+		this.indices = [];
 	}
 
 	resizeDataBuffer(size) {
+		this.dataBufferOffset = 0;
 		this.dataBuffer = new Float32Array(size);
 	}
 
-	setSphere(radius, latCount, langCount, color, dotColor) {
-		const verticesCount = latCount * langCount;
-		const vertexSize = 3 + 3;
-		this.vertexSize = vertexSize;
-		this.verticesCount = verticesCount;
+	setColor(colorMap) {
+		if (colorMap?.sphere) this.sphereColor = colorMap.sphere;
+		if (colorMap?.dot) this.dotColor = colorMap.dot;
+		if (colorMap?.bacteria) this.bacteriaColor = colorMap.bacteria;
+	}
 
-		this.resizeDataBuffer(verticesCount * vertexSize);
+	setBacteriaPosition(phi, theta) {
+		this.bacteriaPos = { phi, theta };
+	}
 
-		const latDegreeStep = 165 / latCount;
-		const langDegreeStep = 360 / langCount;
+	setDotPosition(phi, theta) {
+		this.dotPos = { phi, theta };
+	}
 
-		for (let latNumber = 0; latNumber <= latCount; latNumber++) {
-			const theta = latNumber * latDegreeStep + 15;
+	addSphere(ox, oy, oz, radius, type = "field") {
+		const latDegreeStep = 180 / (this.latStep - 1);
+		const langDegreeStep = 360 / (this.langStep);
+
+		let bufferOffset = this.dataBufferOffset;
+		for (let latNumber = 0; latNumber < this.latStep; latNumber++) {
+			const theta = latNumber * latDegreeStep + 0;
 			const sinTheta = Math.sin(radians(theta));
 			const cosTheta = Math.cos(radians(theta));
-			for (let langNumber = 0; langNumber <= langCount; langNumber++) {
+			for (let langNumber = 0; langNumber <= this.langStep; langNumber++) {
 				const phi = langNumber * langDegreeStep;
 				const sinPhi = Math.sin(radians(phi));
 				const cosPhi = Math.cos(radians(phi));
@@ -72,51 +110,48 @@ class RenderPipeline {
 				const y = sinPhi * sinTheta;
 				const z = cosTheta;
 
-				let bIndex = (latNumber * langCount + langNumber) * vertexSize;
-				this.dataBuffer[bIndex++] = x * radius;
-				this.dataBuffer[bIndex++] = y * radius;
-				this.dataBuffer[bIndex++] = z * radius;
-				if (latNumber === 0 && langNumber === 0) {
-					this.dataBuffer[bIndex++] = 0.0;
-					this.dataBuffer[bIndex++] = 1.0;
-					this.dataBuffer[bIndex++] = 0.0;
-				}else if (latNumber === 1 && langNumber === 1) {
-					this.dataBuffer[bIndex++] = 1.0;
-					this.dataBuffer[bIndex++] = 0.0;
-					this.dataBuffer[bIndex++] = 0.0;
-				} else if (latNumber % 2 < 1 && langNumber % 2 < 1) {
-					this.dataBuffer[bIndex++] = dotColor[0];
-					this.dataBuffer[bIndex++] = dotColor[1];
-					this.dataBuffer[bIndex++] = dotColor[2];
-				} else {
-					this.dataBuffer[bIndex++] = color[0];
-					this.dataBuffer[bIndex++] = color[1];
-					this.dataBuffer[bIndex++] = color[2];
-
+				let bIndex = bufferOffset + (latNumber * this.langStep + langNumber) * this.vertexSize;
+				this.dataBuffer[bIndex++] = ox + x * radius;
+				this.dataBuffer[bIndex++] = oy + y * radius;
+				this.dataBuffer[bIndex++] = oz + z * radius;
+				if (type === "field") {
+					if (latNumber % this.dotPos.phi === 0 && langNumber % this.dotPos.theta === 0) {
+						this.dataBuffer[bIndex++] = 1.0;
+					} else if (latNumber === this.bacteriaPos.phi && langNumber === this.bacteriaPos.theta) {
+						this.dataBuffer[bIndex++] = 2.0;
+					} else {
+						this.dataBuffer[bIndex++] = 0.0;
+					}
+				} else if (type === "bact") {
+					this.dataBuffer[bIndex++] = 2.0;
 				}
 			}
 		}
 
-		const latRectCount = latCount;
-		const langRectCount = langCount;
-		const indices = []
-		for (let j = 0; j < latRectCount - 1; j++) {
+		const latRectCount = this.latStep;
+		const langRectCount = this.langStep;
+		bufferOffset = 1 * this.dataBufferOffset;
+		for (let j = 0; j < latRectCount - 0; j++) {
 			for (let i = 0; i < langRectCount; i++) {
 				const q1 = i + j * langRectCount;
 				const q2 = (i + 1) % langRectCount + j * langRectCount;
 				const q3 = i + (j + 1) * langRectCount;
 				const q4 = (i + 1) % langRectCount + (j + 1) * langRectCount;
 
-				indices.push(q1);
-				indices.push(q3);
-				indices.push(q4);
-
-				indices.push(q1);
-				indices.push(q2);
-				indices.push(q4);
+				this.indices.push(bufferOffset + q1);
+				this.indices.push(bufferOffset + q3);
+				this.indices.push(bufferOffset + q4);
+				this.indices.push(bufferOffset + q1);
+				this.indices.push(bufferOffset + q2);
+				this.indices.push(bufferOffset + q4);
 			}
 		}
-		this.indexBuffer = new Uint16Array(indices);
+		this.dataBufferOffset += this.verticesCount * this.vertexSize;
+		this.indexBuffer = new Uint16Array(this.indices);
+		if (this.indexBufferCount === undefined) this.indexBufferCount = this.indexBuffer.length;
+		console.log(this.dataBuffer.length)
+		console.log(this.dataBufferOffset)
+		console.log(this.indexBuffer.length)
 	}
 
 	render() {
@@ -140,11 +175,11 @@ class RenderPipeline {
 			FSIZE * 0
 		);
 
-		const aColor = gl.getAttribLocation(gl.program, "color");
-		gl.enableVertexAttribArray(aColor);
+		const aType = gl.getAttribLocation(gl.program, "type");
+		gl.enableVertexAttribArray(aType);
 		gl.vertexAttribPointer(
-			aColor,
-			3,
+			aType,
+			1,
 			gl.FLOAT,
 			false,
 			FSIZE * ESIZE,
@@ -158,13 +193,19 @@ class RenderPipeline {
 		gl.uniformMatrix4fv(gl.getUniformLocation(gl.program, "Vmatrix"), false, this.viewMatrix.elements);
 		gl.uniformMatrix4fv(gl.getUniformLocation(gl.program, "Mmatrix"), false, this.moMatrix.elements);
 
+		gl.uniform4fv(gl.getUniformLocation(gl.program, "uSphereColor"), this.sphereColor);
+		gl.uniform4fv(gl.getUniformLocation(gl.program, "uDotColor"), this.dotColor);
+		gl.uniform4fv(gl.getUniformLocation(gl.program, "uBacteriaColor"), this.bacteriaColor);
+
 		gl.enable(gl.DEPTH_TEST);
 		gl.clear(gl.COLOR_BUFFER_BIT);
-		gl.drawElements(gl.TRIANGLES, this.indexBuffer.length, gl.UNSIGNED_SHORT, 0);
-		gl.drawArrays(
-			gl.POINTS,
-			0,
-			this.verticesCount
-		);
+		for (let i = 0; i < this.sphereCount; i++) {
+			gl.drawElements(gl.TRIANGLES, this.indexBufferCount, gl.UNSIGNED_SHORT, this.indexBufferCount);
+			// gl.drawArrays(
+			// 	gl.POINTS,
+			// 	i * this.verticesCount,
+			// 	this.verticesCount
+			// );
+		}
 	}
 }

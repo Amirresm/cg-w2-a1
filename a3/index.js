@@ -1,5 +1,6 @@
 function main() {
-	const renderPipeline = new RenderPipeline("webgl");
+	const resolution = 10;
+	const renderPipeline = new RenderPipeline("webgl", resolution, resolution * 2, 2);
 
 	const canvas = document.getElementById("webgl");
 
@@ -31,7 +32,18 @@ function main() {
 		}
 	}
 
-	renderPipeline.setSphere(2, 6, 6, [0.3, 0.3, 0.3, 1], [1, 1, 0, 1]);
+
+	renderPipeline.setColor({
+		sphere: [0.3, 0.3, 0.3, 1.0],
+		dot: [1.0, 1.0, 0.0, 1.0],
+		bacteria: [0.0, 1.0, 0.0, 1.0],
+	})
+
+	renderPipeline.setDotPosition(resolution / 5, resolution / 5);
+	renderPipeline.setBacteriaPosition(2, 100);
+
+	renderPipeline.addSphere(0, 0, 0, 2);
+	renderPipeline.addSphere(2, 2, 0, 0.5);
 	renderPipeline.viewMatrix.setTranslate(0, 0, -6);
 
 	let theta = 0.0;
