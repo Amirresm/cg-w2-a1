@@ -31,7 +31,7 @@ function pointOnSphere(ox, oy, oz, radius, latNumber, longNumber) {
 }
 
 function main() {
-	const resolution = 100;
+	const resolution = 20;
 	const renderPipeline = new RenderPipeline("webgl", resolution, resolution * 2, 10);
 
 	const canvas = document.getElementById("webgl");
@@ -77,7 +77,7 @@ function main() {
 
 	renderPipeline.setColor({
 		sphere: [0.3, 0.3, 0.3, 1.0],
-		dot: [1.0, 0.0, 0.0, 1.0],
+		dot: [0.7, 0.7, 0.7, 1.0],
 		bacteria: [0.0, 1.0, 0.0, 1.0],
 	})
 
@@ -85,6 +85,7 @@ function main() {
 	renderPipeline.setBacteriaPosition(2, 100);
 
 	renderPipeline.addSphere(0, 0, 0, 3.0);
+	renderPipeline.addSphere(0, 0, 0, 3.01, "grid");
 
 
 	const bacteriaPos = randomPointOnSphere(0, 0, 0, 2.95);

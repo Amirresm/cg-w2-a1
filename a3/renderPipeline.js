@@ -27,7 +27,7 @@ class RenderPipeline {
 			gl_PointSize = 5.0;
 			vColor = uSphereColor;
 		} else if (type == 1.0) {
-			gl_PointSize = 4.0;
+			gl_PointSize = 3.0;
 			gl_Position = gl_Position * pointScale;
 			vColor = uDotColor;
 		} else if (type == 2.0) {
@@ -70,11 +70,12 @@ class RenderPipeline {
 
 		this.vertexSize = 3 + 1;
 		this.verticesCount = latStep * langStep + 2;
-		this.indicesCount = (latStep) * langStep * 6 + 2 * langStep * 3;
 		this.dataBufferOffset = null;
 		this.resizeDataBuffer(maxSphereCount * this.verticesCount * this.vertexSize);
 		this.indices = [];
+		this.indicesCount = latStep * langStep * 6 + 2 * langStep * 3;
 		this.lineIndices = [];
+		this.lineIndicesCount = latStep * langStep * 2;
 	}
 
 	resizeDataBuffer(size) {
@@ -133,57 +134,87 @@ class RenderPipeline {
 			this.dataBuffer[bIndex++] = point.z;
 
 			if (type === "field") {
-				if (lat % this.dotPos.phi === 0 && long % this.dotPos.theta === 0) {
-					this.dataBuffer[bIndex++] = 1.0;
-				} else if (lat === this.bacteriaPos.phi && long === this.bacteriaPos.theta) {
-					this.dataBuffer[bIndex++] = 0.0;
-				} else {
-					this.dataBuffer[bIndex++] = 0.0;
-				}
+				this.dataBuffer[bIndex++] = 0.0;
 			} else if (type === "bact") {
 				this.dataBuffer[bIndex++] = 2.0;
+			} else if (type === "grid") {
+				this.dataBuffer[bIndex++] = 1.0;
 			}
+
 		});
 
 		const bufferVertexOffset = (this.currentSphereCount * this.verticesCount);
-		for (let point of spherePoints) {
-			const latIndex = point.lat - 1;
-			if (point.lat === 0) {
-				for (let i = 0; i < this.langStep; i++) {
-					const start = 0;
-					const p1 = 1 + i;
-					const p2 = 1 + ((i + 1) % this.langStep);
-					this.indices.push(bufferVertexOffset + start);
-					this.indices.push(bufferVertexOffset + p1);
-					this.indices.push(bufferVertexOffset + p2);
+		if (type === "grid") {
+			for (let point of spherePoints) {
+				const latIndex = point.lat - 1;
+				if (point.lat !== 0 && point.lat !== this.latStep + 1) {
+					const p1 = 1 + (latIndex * this.langStep) + point.long;
+					const p2 = 1 + (latIndex * this.langStep) + (point.long + 1) % this.langStep;
+					this.lineIndices.push(bufferVertexOffset + p1);
+					this.lineIndices.push(bufferVertexOffset + p2);
 				}
-			} else if (point.lat === this.latStep + 1) {
-				for (let i = 0; i < this.langStep; i++) {
-					const end = this.latStep * this.langStep + 1;
-					const p1 = 1 + ((this.latStep - 1) * this.langStep) + i;
-					const p2 = 1 + ((this.latStep - 1) * this.langStep) + ((i + 1) % this.langStep);
-					this.indices.push(bufferVertexOffset + end);
-					this.indices.push(bufferVertexOffset + p1);
-					this.indices.push(bufferVertexOffset + p2);
+				if (point.lat === 0) {
+					for (let i = 0; i < this.langStep; i++) {
+						const p1 = 0;
+						const p2 = 1 + i;
+						this.lineIndices.push(bufferVertexOffset + p1);
+						this.lineIndices.push(bufferVertexOffset + p2);
+					}
+				} else if (point.lat === this.latStep + 1) {
+					for (let i = 0; i < this.langStep; i++) {
+						const p1 = this.latStep * this.langStep + 1;
+						const p2 = 1 + ((this.latStep - 1) * this.langStep) + i;
+						this.lineIndices.push(bufferVertexOffset + p1);
+						this.lineIndices.push(bufferVertexOffset + p2);
+					}
+				} else if (point.lat < this.latStep){
+					const p1 = 1 + (latIndex * this.langStep) + point.long;
+					const p2 = 1 + ((latIndex + 1) % this.latStep * this.langStep) + point.long;
+					this.lineIndices.push(bufferVertexOffset + p1);
+					this.lineIndices.push(bufferVertexOffset + p2);
 				}
-			} else {
-				const row11 = 1 + (latIndex * this.langStep) + point.long;
-				const row12 = 1 + (latIndex * this.langStep) + (point.long + 1) % this.langStep;
-				const row21 = 1 + ((latIndex + 1) % this.latStep * this.langStep) + point.long;
-				const row22 = 1 + ((latIndex + 1) % this.latStep * this.langStep) + (point.long + 1) % this.langStep;
+			}
+		} else {
+			for (let point of spherePoints) {
+				const latIndex = point.lat - 1;
+				if (point.lat === 0) {
+					for (let i = 0; i < this.langStep; i++) {
+						const start = 0;
+						const p1 = 1 + i;
+						const p2 = 1 + ((i + 1) % this.langStep);
+						this.indices.push(bufferVertexOffset + start);
+						this.indices.push(bufferVertexOffset + p1);
+						this.indices.push(bufferVertexOffset + p2);
+					}
+				} else if (point.lat === this.latStep + 1) {
+					for (let i = 0; i < this.langStep; i++) {
+						const end = this.latStep * this.langStep + 1;
+						const p1 = 1 + ((this.latStep - 1) * this.langStep) + i;
+						const p2 = 1 + ((this.latStep - 1) * this.langStep) + ((i + 1) % this.langStep);
+						this.indices.push(bufferVertexOffset + end);
+						this.indices.push(bufferVertexOffset + p1);
+						this.indices.push(bufferVertexOffset + p2);
+					}
+				} else {
+					const row11 = 1 + (latIndex * this.langStep) + point.long;
+					const row12 = 1 + (latIndex * this.langStep) + (point.long + 1) % this.langStep;
+					const row21 = 1 + ((latIndex + 1) % this.latStep * this.langStep) + point.long;
+					const row22 = 1 + ((latIndex + 1) % this.latStep * this.langStep) + (point.long + 1) % this.langStep;
 
-				this.indices.push(bufferVertexOffset + row11);
-				this.indices.push(bufferVertexOffset + row12);
-				this.indices.push(bufferVertexOffset + row21);
+					this.indices.push(bufferVertexOffset + row11);
+					this.indices.push(bufferVertexOffset + row12);
+					this.indices.push(bufferVertexOffset + row21);
 
-				this.indices.push(bufferVertexOffset + row12);
-				this.indices.push(bufferVertexOffset + row22);
-				this.indices.push(bufferVertexOffset + row21);
+					this.indices.push(bufferVertexOffset + row12);
+					this.indices.push(bufferVertexOffset + row22);
+					this.indices.push(bufferVertexOffset + row21);
+				}
 			}
 		}
 
 		this.dataBufferOffset += this.verticesCount * this.vertexSize;
 		this.indexBuffer = new Uint16Array(this.indices);
+		this.lineIndexBuffer = new Uint16Array(this.lineIndices);
 		// console.log(this.dataBuffer.length)
 		// console.log(this.dataBufferOffset)
 		// console.log(bufferVertexOffset)
@@ -238,7 +269,11 @@ class RenderPipeline {
 
 		gl.enable(gl.DEPTH_TEST);
 		gl.clear(gl.COLOR_BUFFER_BIT);
-		gl.drawElements(gl.TRIANGLES, this.indicesCount * this.currentSphereCount, gl.UNSIGNED_SHORT, 0);
+		gl.drawElements(gl.TRIANGLES, this.indexBuffer.length, gl.UNSIGNED_SHORT, 0);
+
+		// gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this.lineIndexBuffer, gl.STATIC_DRAW);
+		gl.drawElements(gl.LINES, this.lineIndexBuffer.length, gl.UNSIGNED_SHORT, 0);
 		for (let i = 0; i < this.currentSphereCount; i++) {
 			// gl.drawElements(gl.TRIANGLES, this.indicesCount, gl.UNSIGNED_SHORT, i * this.indicesCount * Uint16Array.BYTES_PER_ELEMENT);
 			// gl.drawArrays(
